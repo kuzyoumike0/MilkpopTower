@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Candy Defense (Nyanko-like)</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header id="hud">
+    <div class="row">
+      <div class="pill">ENEMY BASE <b id="enemyHpText">---</b></div>
+      <div class="pill">WAVE <b id="waveText">1</b></div>
+      <div class="pill">YOUR BASE <b id="yourHpText">---</b></div>
+    </div>
+
+    <div class="row">
+      <div class="pill wide">
+        🍭 Candy
+        <span id="candyText">0/0</span>
+        <div class="bar">
+          <div class="barFill" id="candyBar"></div>
+        </div>
+      </div>
+
+      <button class="btn" id="btnPause">⏸</button>
+      <button class="btn" id="btnReset">↻</button>
+    </div>
+  </header>
+
+  <main id="stage">
+    <canvas id="cv"></canvas>
+
+    <div id="panel">
+      <button class="unitBtn" data-unit="puchi">
+        <div class="uName">🍬 ぷちバニー</div>
+        <div class="uMeta">cost 120</div>
+      </button>
+      <button class="unitBtn" data-unit="stitch">
+        <div class="uName">🧵 つぎはぎ</div>
+        <div class="uMeta">cost 220</div>
+      </button>
+      <button class="unitBtn" data-unit="lollipop">
+        <div class="uName">🍭 ペロ職人</div>
+        <div class="uMeta">cost 320</div>
+      </button>
+      <button class="skillBtn" id="btnSkill">
+        <div class="uName">✨ 必殺：ペロスイング</div>
+        <div class="uMeta"><span id="skillText">ready</span></div>
+      </button>
+    </div>
+
+    <div id="overlay" class="hidden">
+      <div class="card">
+        <h1 id="ovTitle">TITLE</h1>
+        <p id="ovDesc">DESC</p>
+        <div class="ovBtns">
+          <button class="btn big" id="btnNext">次へ</button>
+          <button class="btn big" id="btnAgain">もう一回</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="./main.js"></script>
+</body>
+</html>
