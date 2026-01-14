@@ -14,8 +14,11 @@ export function createStage() {
   }
 
   // ✅ 端固定：mirrorball 左端 / oak 右端
-  function mirrorX() { return ST.leftBaseX + 54; }
+  function mirrorX() { return 60; } // 画面左端寄り
   function oakX()    { return ST.rightBaseX - 54; }
+
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const isReady = (img) => img && img.complete && img.naturalWidth > 0;
 
   function drawBackground(ctx, w, h) {
     const g = ctx.createLinearGradient(0, 0, 0, h);
@@ -35,63 +38,52 @@ export function createStage() {
     ctx.stroke();
   }
 
-  function drawBase(ctx, x, y, hp, hpMax, isYour) {
-    const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-    ctx.save();
-    ctx.translate(x, y);
-
-    ctx.fillStyle = isYour ? "rgba(255,123,178,.80)" : "rgba(80,80,90,.55)";
-    ctx.beginPath();
-    ctx.roundRect(-22, -74, 44, 92, 16);
-    ctx.fill();
-
-    ctx.fillStyle = "rgba(255,255,255,.92)";
-    ctx.beginPath();
-    ctx.arc(0, -86, 18, 0, Math.PI * 2);
-    ctx.fill();
-
-    const p = clamp(hp / hpMax, 0, 1);
-    ctx.fillStyle = "rgba(0,0,0,.12)";
-    ctx.fillRect(-30, -110, 60, 8);
-    ctx.fillStyle = isYour ? "#ff4fa0" : "#6a6a7a";
-    ctx.fillRect(-30, -110, 60 * p, 8);
-
-    ctx.restore();
-  }
-
   function drawSpawner(ctx, x, y, img, size) {
-    const isReady = (im) => im && im.complete && im.naturalWidth > 0;
     if (isReady(img)) {
       ctx.drawImage(img, x - size / 2, y - size, size, size);
       return;
     }
-    // fallback
     ctx.fillStyle = "rgba(0,0,0,.12)";
     ctx.beginPath();
     ctx.arc(x, y - size * 0.55, size * 0.35, 0, Math.PI * 2);
     ctx.fill();
   }
 
+  function drawHpBar(ctx, x, y, w, p) {
+    p = clamp(p, 0, 1);
+    ctx.fillStyle = "rgba(0,0,0,.12)";
+    ctx.fillRect(x, y, w, 10);
+    ctx.fillStyle = "#ff4fa0";
+    ctx.fillRect(x, y, w * p, 10);
+    ctx.strokeStyle = "rgba(0,0,0,.08)";
+    ctx.strokeRect(x, y, w, 10);
+  }
+
+  // state: { stageId, mirrorHP, mirrorHPMax, yourBaseHP, yourBaseHPMax }
   function render(ctx, canvas, assets, state) {
     const rect = canvas.getBoundingClientRect();
     const w = rect.width, h = rect.height;
 
     drawBackground(ctx, w, h);
 
-    // bases
-    drawBase(ctx, ST.leftBaseX,  ST.laneY + 24, state.enemyBaseHP, state.enemyBaseHPMax, false);
-    drawBase(ctx, ST.rightBaseX, ST.laneY + 24, state.yourBaseHP,  state.yourBaseHPMax,  true);
+    // oak（右端）
+    drawSpawner(ctx, oakX(), ST.laneY + 28, assets.oak, 170);
 
-    // spawners (left/right edge)
-    drawSpawner(ctx, mirrorX(), ST.laneY + 28, assets.mirrorball, 150);
-    drawSpawner(ctx, oakX(),    ST.laneY + 28, assets.oak,        170);
+    // mirrorball（左端＝敵拠点）
+    const mx = mirrorX();
+    drawSpawner(ctx, mx, ST.laneY + 28, assets.mirrorball, 150);
+
+    // mirror HP bar（左上寄り）
+    drawHpBar(ctx, 18, 18, 220, state.mirrorHP / state.mirrorHPMax);
+
+    // stage label（左上）
+    ctx.fillStyle = "rgba(0,0,0,.55)";
+    ctx.font = "900 14px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(`STAGE ${state.stageId}`, 18, 58);
+
+    // your base HP bar（右上寄り）
+    drawHpBar(ctx, w - 238, 18, 220, state.yourBaseHP / state.yourBaseHPMax);
   }
 
-  return {
-    ST,
-    resize,
-    mirrorX,
-    oakX,
-    render,
-  };
+  return { ST, resize, mirrorX, oakX, render };
 }
