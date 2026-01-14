@@ -102,7 +102,6 @@ import { createStageFlow } from "./stageFlow.js";
       ">
     `;
   }
-
   function hideResult() {
     if (resultOverlay) resultOverlay.innerHTML = "";
   }
@@ -150,7 +149,7 @@ import { createStageFlow } from "./stageFlow.js";
     BGM.currentTime = 0;
     BGM.play().catch(()=>{});
   }
-  window.addEventListener("pointerdown", unlockBgm); // 取りこぼし防止で onceしない
+  window.addEventListener("pointerdown", unlockBgm);
 
   function playSE(src, volMul = 1) {
     if (!src) return;
@@ -226,51 +225,51 @@ import { createStageFlow } from "./stageFlow.js";
    * ========================= */
   const GAME = {
     yourBaseHPMax: 2200,
-    candyMaxBase: 500,
+    candyMaxBase: 1000,     // ✅ 上限1000
     candyRegenBase: 32,
     oakSpawnSec: 3.2,
     maxUnitsEachSide: 34,
   };
 
+  // ✅ bunny → bunny3 → bunny4 → bunny5 → reabunny の順で強い
   const UNIT_DEFS = {
-    babybunny:{ cost: 90,  hp:120, atk:16, range:24, speed:60, atkCd:0.55, size:24, spawnCd:1.8 },
-    bunny:    { cost:160,  hp:220, atk:22, range:26, speed:52, atkCd:0.62, size:26, spawnCd:2.6 },
-    bunny3:   { cost:240,  hp:320, atk:28, range:28, speed:46, atkCd:0.70, size:28, spawnCd:3.4 },
-    bunny4:   { cost:340,  hp:420, atk:34, range:30, speed:42, atkCd:0.78, size:30, spawnCd:4.4 },
-    bunny5:   { cost:460,  hp:560, atk:42, range:34, speed:38, atkCd:0.86, size:32, spawnCd:5.6 },
-    reabunny: { cost:620,  hp:520, atk:46, range:140,speed:34, atkCd:0.95, size:32, spawnCd:7.2 },
+    babybunny:{ cost: 90, hp:170,  atk:14, range:24,  speed:60, atkCd:0.55, size:24, spawnCd:1.8 },
+
+    bunny:    { cost:160, hp:320,  atk:24, range:26,  speed:52, atkCd:0.62, size:26, spawnCd:2.6 },
+    bunny3:   { cost:240, hp:520,  atk:34, range:28,  speed:48, atkCd:0.70, size:28, spawnCd:3.4 },
+    bunny4:   { cost:340, hp:800,  atk:46, range:32,  speed:44, atkCd:0.78, size:30, spawnCd:4.4 },
+    bunny5:   { cost:460, hp:1200, atk:62, range:36,  speed:40, atkCd:0.86, size:32, spawnCd:5.6 },
+
+    // 遠距離・最強
+    reabunny: { cost:620, hp:980,  atk:88, range:170, speed:34, atkCd:0.95, size:32, spawnCd:7.2 },
   };
 
   function enemyStatsForStage(cfg) {
+    // 基礎値×倍率 + ステージで少しテンポUP
+    const baseHP  = 170;
+    const baseATK = 18;
     return {
-      hp: Math.floor(160 * cfg.enemyMulHP),
-      atk: Math.floor(18  * cfg.enemyMulATK),
-      speed: 48 + cfg.id * 2,
-      atkCd: Math.max(0.45, 0.65 - cfg.id * 0.02),
+      hp: Math.floor(baseHP  * cfg.enemyMulHP),
+      atk: Math.floor(baseATK * cfg.enemyMulATK),
+      speed: 46 + cfg.id * 2,
+      atkCd: Math.max(0.42, 0.66 - cfg.id * 0.02),
       size: 26,
       range: 24,
     };
   }
 
   /* =========================
-   * Helpers
+   * Helpers / Particles
    * ========================= */
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const rand = (a,b)=>a+Math.random()*(b-a);
 
-  /* =========================
-   * Particles
-   * - break explosion/sparkle
-   * - win: confetti
-   * - lose: smoke
-   * ========================= */
   const particles = [];
 
   function spawnBreakParticles(side){
     const x = (side === "mirror") ? stage.mirrorX() : stage.oakX();
     const y = stage.ST.laneY - 30;
 
-    // boom
     for (let i = 0; i < 34; i++) {
       const ang = rand(-Math.PI * 0.9, Math.PI * 0.9);
       const sp  = rand(140, 420);
@@ -286,7 +285,6 @@ import { createStageFlow } from "./stageFlow.js";
                                     "rgba(255,255,255,1)"
       });
     }
-    // sparkle
     for (let i = 0; i < 22; i++) {
       const ang = rand(-Math.PI, Math.PI);
       const sp  = rand(70, 250);
@@ -300,11 +298,9 @@ import { createStageFlow } from "./stageFlow.js";
         col: (Math.random()<0.6) ? "rgba(255,255,255,1)" : "rgba(255,240,160,1)"
       });
     }
-    // ring
     particles.push({ type:"ring", x, y, vx:0, vy:0, r:8, life:0.55, t:0, col:"rgba(255,255,255,1)" });
   }
 
-  // ✅ 勝利：紙吹雪（上からひらひら落ちる）
   function spawnConfetti() {
     const w = cv.getBoundingClientRect().width;
     const h = cv.getBoundingClientRect().height;
@@ -321,7 +317,6 @@ import { createStageFlow } from "./stageFlow.js";
         s: rand(6, 14),
         life: rand(1.3, 2.2),
         t:0,
-        // パステル
         col: [
           "rgba(255,120,190,1)",
           "rgba(120,200,255,1)",
@@ -334,7 +329,6 @@ import { createStageFlow } from "./stageFlow.js";
     }
   }
 
-  // ✅ 敗北：黒い煙（もくもく上に）
   function spawnSmoke() {
     const x = stage.oakX();
     const y = stage.ST.laneY - 25;
@@ -365,34 +359,25 @@ import { createStageFlow } from "./stageFlow.js";
       p.t += dt;
       if (p.t >= p.life) { particles.splice(i, 1); continue; }
 
-      if (p.type === "ring") {
-        p.r += 420 * dt;
-        continue;
-      }
+      if (p.type === "ring") { p.r += 420 * dt; continue; }
 
       if (p.type === "smoke") {
         p.vx *= (1 - 0.9*dt);
         p.vy *= (1 - 0.4*dt);
-        p.x += p.vx*dt;
-        p.y += p.vy*dt;
+        p.x += p.vx*dt; p.y += p.vy*dt;
         p.r += p.grow*dt;
         continue;
       }
 
       if (p.type === "confetti") {
-        p.vy += 220 * dt; // 軽い重力
+        p.vy += 220 * dt;
         p.x  += p.vx * dt;
         p.y  += p.vy * dt;
         p.rot += p.vr * dt;
-
-        // 画面外で消えやすく
-        if (p.y > h + 80 || p.x < -80 || p.x > w + 80) {
-          p.t = p.life;
-        }
+        if (p.y > h + 80 || p.x < -80 || p.x > w + 80) p.t = p.life;
         continue;
       }
 
-      // boom / spark
       p.vy += g * dt * (p.type === "spark" ? 0.35 : 1.0);
       p.x  += p.vx * dt;
       p.y  += p.vy * dt;
@@ -402,7 +387,6 @@ import { createStageFlow } from "./stageFlow.js";
   function drawParticles(){
     if (!particles.length) return;
 
-    // ① 光系（爆発/きらきら/リング）
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const p of particles) {
@@ -436,7 +420,6 @@ import { createStageFlow } from "./stageFlow.js";
     }
     ctx.restore();
 
-    // ② 通常系（紙吹雪/煙）
     ctx.save();
     ctx.globalCompositeOperation = "source-over";
     for (const p of particles) {
@@ -449,7 +432,6 @@ import { createStageFlow } from "./stageFlow.js";
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rot);
-        // ひらひら（縦をsinで変える）
         const w = p.s;
         const hh = p.s * (0.45 + 0.55 * Math.abs(Math.sin(p.rot*2)));
         ctx.fillRect(-w/2, -hh/2, w, hh);
@@ -478,10 +460,7 @@ import { createStageFlow } from "./stageFlow.js";
     u.shakeA = Math.max(u.shakeA || 0, amp);
   }
 
-  const BASE_BREAK = {
-    time: 1.25,    // 端到達 → 破壊完了まで
-    shakeAmp: 6,   // 破壊中の揺れ
-  };
+  const BASE_BREAK = { time: 1.25, shakeAmp: 6 };
   let baseBreaking = false;
   let baseBreakSide = null; // "mirror" | "oak"
   let baseBreakTimer = 0;
@@ -491,11 +470,9 @@ import { createStageFlow } from "./stageFlow.js";
     baseBreaking = true;
     baseBreakSide = side;
     baseBreakTimer = BASE_BREAK.time;
-
     if (breakerUnit) {
       breakerUnit.breaking = true;
       breakerUnit.breakT = BASE_BREAK.time;
-      breakerUnit.breakSide = side;
       kickShake(breakerUnit, BASE_BREAK.shakeAmp, 0.25);
     }
   }
@@ -516,10 +493,9 @@ import { createStageFlow } from "./stageFlow.js";
   let yourBaseHP    = yourBaseHPMax;
 
   let candyMax   = GAME.candyMaxBase;
-  let candy      = 220;
+  let candy      = 400; // ✅ 上限1000に合わせて開始は少し多め
   let candyRegen = GAME.candyRegenBase;
 
-  // skill（軽め）
   const SKILL = { cd: 9, dmg: 24, push: 20 };
   let skillReady = true;
   let skillLeft = 0;
@@ -530,7 +506,6 @@ import { createStageFlow } from "./stageFlow.js";
 
   let oakTimer = 0;
   let mirrorTimer = 0;
-
   let lockedWin = false;
 
   /* =========================
@@ -542,28 +517,19 @@ import { createStageFlow } from "./stageFlow.js";
       side:"your",
       key, x,
       y: stage.ST.laneY,
-      hp:d.hp,
-      hpMax:d.hp,
-      atk:d.atk,
-      range:d.range,
-      speed:d.speed,
-      atkCd:d.atkCd,
-      cdLeft:0,
-      size:d.size,
+      hp:d.hp, hpMax:d.hp,
+      atk:d.atk, range:d.range,
+      speed:d.speed, atkCd:d.atkCd,
+      cdLeft:0, size:d.size,
 
-      shakeT:0,
-      shakeA:0,
-
-      breaking:false,
-      breakT:0,
-      breakSide:null,
+      shakeT:0, shakeA:0,
+      breaking:false, breakT:0,
     };
   }
 
   function spawnYour(key) {
     const d = UNIT_DEFS[key];
-    if (!d) return;
-    if (lockedWin) return;
+    if (!d || lockedWin) return;
     if (candy < d.cost) return;
     if ((spawnCdLeft[key] || 0) > 0) return;
 
@@ -585,29 +551,19 @@ import { createStageFlow } from "./stageFlow.js";
       side:"enemy",
       x: stage.mirrorX() + 60,
       y: stage.ST.laneY,
-      hp:s.hp,
-      hpMax:s.hp,
-      atk:s.atk,
-      range:s.range,
-      speed:s.speed,
-      atkCd:s.atkCd,
-      cdLeft:0,
-      size:s.size,
+      hp:s.hp, hpMax:s.hp,
+      atk:s.atk, range:s.range,
+      speed:s.speed, atkCd:s.atkCd,
+      cdLeft:0, size:s.size,
 
-      shakeT:0,
-      shakeA:0,
-
-      breaking:false,
-      breakT:0,
-      breakSide:null,
+      shakeT:0, shakeA:0,
+      breaking:false, breakT:0,
     });
   }
 
   function updateUnit(u, dt) {
-    // shake decay
     if (u.shakeT > 0) u.shakeT = Math.max(0, u.shakeT - dt);
 
-    // breaking motion stops movement
     if (u.breaking) {
       u.breakT = Math.max(0, u.breakT - dt);
       kickShake(u, BASE_BREAK.shakeAmp, 0.12);
@@ -621,8 +577,7 @@ import { createStageFlow } from "./stageFlow.js";
     const targets = isYour ? enemyUnits : yourUnits;
     const baseX = isYour ? stage.mirrorX() : stage.oakX();
 
-    let target = null;
-    let best = 1e9;
+    let target = null, best = 1e9;
     for (const t of targets) {
       const d = Math.abs(u.x - t.x);
       if (d < best) { best = d; target = t; }
@@ -635,15 +590,12 @@ import { createStageFlow } from "./stageFlow.js";
       if (u.cdLeft <= 0) {
         if (target) {
           target.hp -= u.atk;
-
-          // ✅ 接触ヒット揺れ
           kickShake(u, 3.5, 0.10);
           kickShake(target, 4.5, 0.12);
         } else {
-          // ✅ 拠点に届いた＝破壊モーション開始
           kickShake(u, 5.5, 0.16);
-          if (isYour) startBaseBreak("mirror", u); // 勝利側
-          else       startBaseBreak("oak", u);     // 敗北側
+          if (isYour) startBaseBreak("mirror", u);
+          else       startBaseBreak("oak", u);
         }
         u.cdLeft = u.atkCd;
       }
@@ -666,10 +618,7 @@ import { createStageFlow } from "./stageFlow.js";
 
   function updateEconomy(dt) {
     candy = clamp(candy + candyRegen * dt, 0, candyMax);
-
-    for (const k in spawnCdLeft) {
-      spawnCdLeft[k] = Math.max(0, spawnCdLeft[k] - dt);
-    }
+    for (const k in spawnCdLeft) spawnCdLeft[k] = Math.max(0, spawnCdLeft[k] - dt);
 
     if (!skillReady) {
       skillLeft = Math.max(0, skillLeft - dt);
@@ -679,16 +628,10 @@ import { createStageFlow } from "./stageFlow.js";
 
   function updateSpawners(dt) {
     oakTimer += dt;
-    if (oakTimer >= GAME.oakSpawnSec) {
-      oakTimer = 0;
-      spawnFromOakAuto();
-    }
+    if (oakTimer >= GAME.oakSpawnSec) { oakTimer = 0; spawnFromOakAuto(); }
 
     mirrorTimer += dt;
-    if (mirrorTimer >= stageCfg.mirrorSpawnSec) {
-      mirrorTimer = 0;
-      spawnFromMirrorball();
-    }
+    if (mirrorTimer >= stageCfg.mirrorSpawnSec) { mirrorTimer = 0; spawnFromMirrorball(); }
   }
 
   function tryStartBgm(fromRestart = false) {
@@ -700,48 +643,35 @@ import { createStageFlow } from "./stageFlow.js";
   }
 
   function useSkill() {
-    if (lockedWin) return;
-    if (!skillReady) return;
-
-    for (const e of enemyUnits) {
-      e.hp -= SKILL.dmg;
-      e.x -= SKILL.push;
-      kickShake(e, 4.2, 0.12);
-    }
+    if (lockedWin || !skillReady) return;
+    for (const e of enemyUnits) { e.hp -= SKILL.dmg; e.x -= SKILL.push; kickShake(e, 4.2, 0.12); }
     playSE("./assets/se/pop.mp3", 0.6);
-
     skillReady = false;
     skillLeft = SKILL.cd;
-    if ($skillText) $skillText.textContent = `${SKILL.cd}s`;
+  }
+
+  function nextStageId() {
+    const max = 5;
+    return (stageId >= max) ? 1 : (stageId + 1);
   }
 
   function checkWinLose() {
-    // 勝利
     if (!lockedWin && mirrorHP <= 0) {
       lockedWin = true;
       BGM.pause();
-
-      // ✅ 勝利：紙吹雪
       spawnConfetti();
-
       showResult("win");
-
       setTimeout(() => {
         hideResult();
-        flow.showWin(cfg => loadStage(cfg));
+        loadStage(flow.loadStage(nextStageId()));
       }, 1200);
     }
 
-    // 敗北
     if (!lockedWin && yourBaseHP <= 0) {
       lockedWin = true;
       BGM.pause();
-
-      // ✅ 敗北：黒い煙
       spawnSmoke();
-
       showResult("lose");
-
       setTimeout(() => {
         hideResult();
         loadStage(stageCfg);
@@ -758,21 +688,18 @@ import { createStageFlow } from "./stageFlow.js";
 
     yourBaseHP  = yourBaseHPMax;
 
-    candy = 220;
+    candyMax = GAME.candyMaxBase;
+    candy = 400;
+
     yourUnits.length = 0;
     enemyUnits.length = 0;
     for (const k in spawnCdLeft) delete spawnCdLeft[k];
 
-    oakTimer = 0;
-    mirrorTimer = 0;
-
+    oakTimer = 0; mirrorTimer = 0;
     lockedWin = false;
 
-    skillReady = true;
-    skillLeft = 0;
-    if ($skillText) $skillText.textContent = "ready";
+    skillReady = true; skillLeft = 0;
 
-    // ✅ base break reset
     baseBreaking = false;
     baseBreakSide = null;
     baseBreakTimer = 0;
@@ -787,23 +714,16 @@ import { createStageFlow } from "./stageFlow.js";
     const img = (u.side === "your") ? pickYourImg(u.key) : pickEnemyImg();
     const s = u.size * 2.2;
 
-    // shake offsets
     const a = (u.shakeT > 0) ? (u.shakeA || 0) : 0;
     const ox = (a > 0) ? (Math.sin(performance.now() * 0.06) * a) : 0;
     const oy = (a > 0) ? (Math.cos(performance.now() * 0.07) * (a * 0.35)) : 0;
 
-    // breaking visual
     const isBreak = !!u.breaking;
     const scale = isBreak ? (1 + 0.05 * Math.sin(performance.now() * 0.03)) : 1;
 
     ctx.save();
     ctx.translate(u.x + ox, u.y + oy);
-
-    if (isBreak) {
-      const rot = Math.sin(performance.now() * 0.04) * 0.06;
-      ctx.rotate(rot);
-    }
-
+    if (isBreak) ctx.rotate(Math.sin(performance.now() * 0.04) * 0.06);
     ctx.scale(scale, scale);
     ctx.drawImage(img, -s/2, -s, s, s);
     ctx.restore();
@@ -811,23 +731,14 @@ import { createStageFlow } from "./stageFlow.js";
 
   function render() {
     stage.render(ctx, cv, { oak: ITEM.oak, mirrorball: ITEM.mirrorball }, {
-      stageId,
-      mirrorHP,
-      mirrorHPMax,
-      yourBaseHP,
-      yourBaseHPMax,
+      stageId, mirrorHP, mirrorHPMax, yourBaseHP, yourBaseHPMax
     });
 
     enemyUnits.forEach(drawUnit);
     yourUnits.forEach(drawUnit);
-
-    // ✅ particles on top
     drawParticles();
   }
 
-  /* =========================
-   * UI update
-   * ========================= */
   function refreshUI() {
     $waveText.textContent = `${stageId}`;
     $yourHpText.textContent = Math.max(0, yourBaseHP | 0);
@@ -845,10 +756,7 @@ import { createStageFlow } from "./stageFlow.js";
       b.disabled = !ok;
     });
 
-    if ($skillText) {
-      if (skillReady) $skillText.textContent = "ready";
-      else $skillText.textContent = `${Math.ceil(skillLeft)}s`;
-    }
+    if ($skillText) $skillText.textContent = skillReady ? "ready" : `${Math.ceil(skillLeft)}s`;
   }
 
   /* =========================
@@ -858,32 +766,22 @@ import { createStageFlow } from "./stageFlow.js";
     const dt = Math.min(0.05, (t - tPrev) / 1000);
     tPrev = t;
 
-    // particles update always（勝敗演出中も動く）
     updateParticles(dt);
 
     if (!paused && !lockedWin) {
       updateEconomy(dt);
-
-      // ✅ 破壊演出中はスポーン止める（気持ちいい）
       if (!baseBreaking) updateSpawners(dt);
 
       yourUnits.forEach(u => updateUnit(u, dt));
       enemyUnits.forEach(u => updateUnit(u, dt));
       cleanupDead();
 
-      // ✅ base break countdown
       if (baseBreaking) {
         baseBreakTimer = Math.max(0, baseBreakTimer - dt);
         if (baseBreakTimer <= 0) {
-          // 破壊完了で爆発/きらきら
           spawnBreakParticles(baseBreakSide);
-
-          if (baseBreakSide === "mirror") {
-            mirrorHP = 0;      // 勝利へ
-          } else {
-            yourBaseHP = 0;    // 敗北へ
-          }
-
+          if (baseBreakSide === "mirror") mirrorHP = 0;
+          else yourBaseHP = 0;
           baseBreaking = false;
           baseBreakSide = null;
         }
@@ -894,7 +792,6 @@ import { createStageFlow } from "./stageFlow.js";
 
     render();
     refreshUI();
-
     tryStartBgm(false);
     requestAnimationFrame(loop);
   }
@@ -917,9 +814,15 @@ import { createStageFlow } from "./stageFlow.js";
 
   if ($btnSkill) $btnSkill.onclick = () => useSkill();
 
+  // ステージ選択（stageFlow.js側UI）
   flow.onSelect(cfg => {
     BGM.pause();
     loadStage(cfg);
+  });
+
+  // 任意：キーボードでSでセレクト（便利）
+  window.addEventListener("keydown", (e) => {
+    if (e.key.toLowerCase() === "s") flow.openStageSelect();
   });
 
   /* =========================
@@ -931,10 +834,7 @@ import { createStageFlow } from "./stageFlow.js";
 
   loadStage(stageCfg);
 
-  requestAnimationFrame((tt) => {
-    tPrev = tt;
-    loop(tt);
-  });
+  requestAnimationFrame((tt) => { tPrev = tt; loop(tt); });
 
   window.addEventListener("resize", () => {
     fitCanvas();
