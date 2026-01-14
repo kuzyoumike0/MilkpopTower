@@ -1,153 +1,306 @@
-*{ box-sizing:border-box; }
-html,body{
-  margin:0; height:100%;
+/* =========================
+   Candy Defense - style.css
+   ========================= */
+
+/* Reset */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #fff1f6;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  background:#fff3f8;
-  overflow:hidden;
+  overflow: hidden;
 }
 
-/* ===== HUD ===== */
-#hud{
-  position:fixed;
-  top:10px; left:50%;
-  transform:translateX(-50%);
-  width:min(1040px, calc(100vw - 16px));
-  z-index:50;
-  pointer-events:auto;
-  display:flex;
-  flex-direction:column;
-  gap:8px;
+/* Stage */
+#stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #fff1f6;
 }
 
-.hudTop{
-  display:grid;
-  grid-template-columns: 140px 1fr 140px;
-  gap:10px;
-  align-items:start;
+#cv {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.hudBottom{
-  display:flex;
-  gap:10px;
-  align-items:center;
-  justify-content:space-between;
+/* =========================
+   HUD Layout
+   ========================= */
+#hud {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1180px, calc(100vw - 16px));
+  z-index: 2147483000;
+  pointer-events: none; /* HUDは基本クリック禁止、ボタンだけ許可 */
 }
 
-.pill{
-  background:rgba(255,255,255,.92);
-  border:2px solid rgba(255, 160, 200, .35);
-  border-radius:18px;
-  padding:10px 12px;
-  box-shadow:0 10px 28px rgba(0,0,0,.10);
-  font-weight:1000;
-  color:#5b3550;
-}
-.pill.mini{ padding:10px 12px; }
-
-.hudCenter{
-  background:rgba(255,255,255,.92);
-  border:2px solid rgba(255, 160, 200, .35);
-  border-radius:22px;
-  padding:10px;
-  box-shadow:0 10px 28px rgba(0,0,0,.10);
+.hudTop {
+  display: grid;
+  grid-template-columns: 160px 1fr 160px;
+  gap: 10px;
+  align-items: start;
+  pointer-events: none;
 }
 
-.candyBox{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:6px 8px;
-  border-radius:18px;
-  background:rgba(255, 210, 230, .28);
-  border:1px solid rgba(255, 170, 210, .35);
-}
-.candyTitle{
-  font-weight:1100;
-  white-space:nowrap;
-}
-.candyNums{
-  font-weight:1100;
-  opacity:.85;
-  min-width:76px;
-  text-align:right;
-}
-.bar{
-  flex:1;
-  height:10px;
-  background:rgba(255, 170, 210, .35);
-  border-radius:999px;
-  overflow:hidden;
-}
-.barFill{
-  height:100%;
-  width:0%;
-  background:linear-gradient(90deg,#ff6fb1,#ffc0da);
+.hudCenter {
+  pointer-events: none;
 }
 
-/* ===== spawn buttons in top-center ===== */
-.spawnRow{
-  margin-top:10px;
-  display:grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap:8px;
+/* 下段 */
+.hudBottom {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
 }
 
-.unitBtn{
-  position:relative;
-  border:none;
-  border-radius:18px;
-  padding:10px 10px 12px;
-  background:linear-gradient(180deg,#ffffff,#ffeaf3);
-  cursor:pointer;
-  box-shadow:0 10px 22px rgba(0,0,0,.10);
-  border:2px solid rgba(255, 160, 200, .30);
-  text-align:left;
-  transition: transform .05s ease;
-}
-.unitBtn:active{ transform: translateY(1px); }
-.uName{ font-weight:1100; color:#5b3550; }
-.uMeta{ font-weight:1100; opacity:.78; margin-top:2px; font-size:12px; color:#5b3550; }
-
-.unitBtn.disabled{
-  opacity:.45;
-  cursor:not-allowed;
-  filter:saturate(.7);
+/* =========================
+   Cute Pills / Panels
+   ========================= */
+.pill {
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(255, 140, 195, 0.35);
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.10);
+  padding: 10px 12px;
+  color: #5b3550;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
 }
 
-.cdBadge{
-  position:absolute;
-  right:10px;
-  bottom:10px;
-  padding:4px 8px;
-  border-radius:999px;
-  background:rgba(0,0,0,.08);
-  font-weight:1100;
-  font-size:12px;
-  color:#5b3550;
+.pill.mini {
+  padding: 8px 12px;
+  border-radius: 18px;
+  font-size: 14px;
 }
 
-/* ===== buttons ===== */
-.btn{
-  border:none;
-  border-radius:18px;
-  padding:10px 12px;
-  background:linear-gradient(180deg,#ffffff,#ffeaf3);
-  border:2px solid rgba(255, 160, 200, .30);
-  box-shadow:0 10px 22px rgba(0,0,0,.10);
-  cursor:pointer;
-  font-weight:1100;
-  color:#5b3550;
+.pill b {
+  margin-left: 6px;
+  color: #ff4fa2;
 }
-.btn.icon{ width:44px; height:44px; padding:0; }
-.btn:active{ transform:translateY(1px); }
-.btn[disabled]{ opacity:.5; cursor:not-allowed; }
 
-/* ===== stage ===== */
-#stage{ height:100%; padding-top:160px; }
-#cv{ width:100%; height:100%; display:block; }
+/* =========================
+   Candy box (center top)
+   ========================= */
+.candyBox {
+  background: rgba(255,255,255,0.90);
+  border: 1px solid rgba(255, 140, 195, 0.40);
+  border-radius: 18px;
+  box-shadow: 0 14px 28px rgba(0,0,0,0.10);
+  padding: 10px 12px;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
 
-@media (max-width: 980px){
-  .hudTop{ grid-template-columns: 120px 1fr 120px; }
-  .spawnRow{ grid-template-columns: repeat(3, 1fr); }
-  #stage{ padding-top:230px; }
+.candyTitle {
+  font-weight: 1000;
+  color: #6b2f52;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.candyNums {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #6b2f52;
+  font-weight: 900;
+}
+
+/* bar */
+.bar {
+  margin-top: 6px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 188, 217, 0.35);
+  border: 1px solid rgba(255, 140, 195, 0.25);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff5aa8, #ffa7d4);
+  transition: width 120ms linear;
+}
+
+/* Center wrapper aligns candy and buttons */
+.hudCenter {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 8px;
+  justify-items: center;
+}
+
+/* =========================
+   Unit buttons row
+   ========================= */
+.spawnRow {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  pointer-events: auto; /* ボタンはクリックできる */
+  flex-wrap: wrap;
+}
+
+.unitBtn {
+  width: 110px;
+  height: 56px;
+  border: 1px solid rgba(255, 140, 195, 0.35);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.88);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.10);
+  cursor: pointer;
+  user-select: none;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  padding: 8px 10px;
+  transition: transform 120ms ease, filter 120ms ease, opacity 120ms ease;
+  color: #5b3550;
+}
+
+.unitBtn:hover { transform: translateY(-2px); }
+.unitBtn:active { transform: translateY(0px) scale(0.98); }
+
+.unitBtn .uName {
+  font-weight: 1000;
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+.unitBtn .uMeta {
+  font-weight: 1000;
+  font-size: 12px;
+  color: #ff4fa2;
+  opacity: 0.95;
+}
+
+.unitBtn.disabled,
+.unitBtn:disabled {
+  opacity: 0.45;
+  filter: grayscale(0.2);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* =========================
+   Buttons (skill/pause/reset)
+   ========================= */
+.btn {
+  pointer-events: auto;
+  border: 1px solid rgba(255, 140, 195, 0.35);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.90);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.10);
+  cursor: pointer;
+  user-select: none;
+  padding: 10px 14px;
+  font-weight: 1000;
+  color: #5b3550;
+  transition: transform 120ms ease, opacity 120ms ease;
+  backdrop-filter: blur(6px);
+}
+
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(0px) scale(0.98); }
+
+.btn.icon {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  font-size: 16px;
+}
+
+.hudBtns {
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+/* Skill button highlight */
+#btnSkill {
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,235,245,0.92));
+}
+
+#btnSkill span {
+  margin-left: 6px;
+  color: #ff4fa2;
+  font-weight: 1000;
+}
+
+/* =========================
+   Stage label / chip
+   (stageFlow.js が "STAGE" ボタンなどを注入しても馴染む)
+   ========================= */
+.stageChip,
+#stageChip,
+.stageBtn,
+#stageBtn {
+  pointer-events: auto;
+}
+
+/* =========================
+   Responsive
+   ========================= */
+@media (max-width: 980px) {
+  #hud { top: 8px; }
+  .hudTop {
+    grid-template-columns: 120px 1fr 120px;
+    gap: 8px;
+  }
+  .unitBtn { width: 98px; }
+}
+
+@media (max-width: 700px) {
+  .hudTop {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .pill.mini {
+    justify-self: center;
+    width: fit-content;
+  }
+  .spawnRow { gap: 8px; }
+}
+
+/* =========================
+   Small help: keep HUD clickable
+   ========================= */
+#hud button, #hud input, #hud select {
+  pointer-events: auto;
+}
+
+/* =========================
+   Optional: nice sliders look
+   (injected in main.js, but input style is here too)
+   ========================= */
+#audioSliders input[type="range"] {
+  width: 120px;
+  height: 18px;
+}
+
+/* =========================
+   Prevent text selection / highlight
+   ========================= */
+#hud, #hud * {
+  -webkit-tap-highlight-color: transparent;
 }
