@@ -133,3 +133,21 @@ html,body{
   #panel{ grid-template-columns:repeat(2, 1fr); }
   #stage{ padding-top:112px; }
 }
+
+.unitBtn, .skillBtn{ position:relative; }
+
+.cdBadge{
+  position:absolute;
+  right:10px;
+  bottom:10px;
+  min-width:34px;
+  text-align:center;
+  padding:4px 8px;
+  border-radius:999px;
+  background:rgba(0,0,0,.08);
+  font-weight:1000;
+  font-size:12px;
+}
+.unitBtn.disabled .cdBadge{
+  background:rgba(0,0,0,.12);
+}
