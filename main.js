@@ -282,7 +282,7 @@ import { createStageFlow } from "./stageFlow.js";
   const stage = createStage();
   const flow  = createStageFlow();
 
-  // ✅ gameMenu.js から呼べるように公開（これで「🗺ステージ選択」ボタンが動く）
+  // ✅ gameMenu.js から呼べるように公開
   window.flow = flow;
   window.StageFlow = flow;
 
@@ -441,10 +441,153 @@ import { createStageFlow } from "./stageFlow.js";
         continue;
       }
 
-      p.vy += g * dt * (p.type === "spark" ? 0.35 : 1.0);
+      // boom / spark / slash は重力を少しだけ
+      const gMul = (p.type === "spark" || p.type === "slash") ? 0.20 : 1.0;
+
+      p.vy += g * dt * gMul;
       p.x  += p.vx * dt;
       p.y  += p.vy * dt;
     }
+  }
+
+  /* =========================
+   * Skill FX (白フラッシュ＋リング＋斬撃線)
+   * ========================= */
+  const skillFX = {
+    flashT: 0,          // 白フラッシュ
+    ringT: 0,           // リング
+    slashes: [],        // 斬撃線
+  };
+
+  function spawnSkillFX() {
+    // 白フラッシュ（短く）
+    skillFX.flashT = Math.max(skillFX.flashT, 0.16);
+    // リング
+    skillFX.ringT = Math.max(skillFX.ringT, 0.40);
+
+    // 斬撃線：画面全体に数本（敵がいるレーン中心付近を多め）
+    const w = cv.getBoundingClientRect().width;
+    const h = cv.getBoundingClientRect().height;
+
+    const baseY = stage.ST.laneY;
+    const count = 10;
+
+    for (let i = 0; i < count; i++) {
+      // 斜め線（右上→左下 / 左上→右下 混ぜる）
+      const dir = (Math.random() < 0.5) ? 1 : -1;
+      const x0 = rand(0, w);
+      const y0 = clamp(baseY + rand(-110, 90), 40, h - 40);
+
+      const len = rand(w * 0.35, w * 0.75);
+      const ang = (dir > 0 ? -0.65 : 0.65) + rand(-0.18, 0.18); // ラジアン
+      const x1 = x0 + Math.cos(ang) * len;
+      const y1 = y0 + Math.sin(ang) * len;
+
+      skillFX.slashes.push({
+        x0, y0, x1, y1,
+        w: rand(2.0, 4.8),
+        t: 0,
+        life: rand(0.14, 0.22),
+        glow: rand(0.55, 0.95),
+      });
+    }
+  }
+
+  function updateSkillFX(dt) {
+    if (skillFX.flashT > 0) skillFX.flashT = Math.max(0, skillFX.flashT - dt);
+    if (skillFX.ringT > 0)  skillFX.ringT  = Math.max(0, skillFX.ringT  - dt);
+
+    for (let i = skillFX.slashes.length - 1; i >= 0; i--) {
+      const s = skillFX.slashes[i];
+      s.t += dt;
+      if (s.t >= s.life) skillFX.slashes.splice(i, 1);
+    }
+  }
+
+  function drawSkillFX() {
+    const w = cv.getBoundingClientRect().width;
+    const h = cv.getBoundingClientRect().height;
+
+    // ① 白フラッシュ（画面全体）
+    if (skillFX.flashT > 0) {
+      const a = clamp(skillFX.flashT / 0.16, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = a * 0.85;
+      ctx.fillStyle = "rgba(255,255,255,1)";
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+
+    // ② 斬撃線（lighterで光らせる）
+    if (skillFX.slashes.length) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const now = performance.now();
+
+      for (const s of skillFX.slashes) {
+        const k = 1 - clamp(s.t / s.life, 0, 1);
+        const alpha = Math.pow(k, 0.6);
+
+        // 外側の光
+        ctx.globalAlpha = alpha * s.glow;
+        ctx.strokeStyle = "rgba(255,255,255,1)";
+        ctx.lineWidth = s.w * 3.0;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(s.x0, s.y0);
+        ctx.lineTo(s.x1, s.y1);
+        ctx.stroke();
+
+        // 内側の芯
+        ctx.globalAlpha = alpha * 0.95;
+        ctx.lineWidth = s.w;
+        ctx.beginPath();
+        ctx.moveTo(s.x0, s.y0);
+        ctx.lineTo(s.x1, s.y1);
+        ctx.stroke();
+
+        // きらめき点（線上を少し走る）
+        const tt = (Math.sin(now * 0.02 + s.x0 * 0.01) * 0.5 + 0.5);
+        const px = s.x0 + (s.x1 - s.x0) * tt;
+        const py = s.y0 + (s.y1 - s.y0) * tt;
+        ctx.globalAlpha = alpha * 0.8;
+        ctx.fillStyle = "rgba(255,255,255,1)";
+        ctx.beginPath();
+        ctx.arc(px, py, s.w * 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    // ③ リング（レーン中心に拡大）
+    if (skillFX.ringT > 0) {
+      const k = 1 - clamp(skillFX.ringT / 0.40, 0, 1); // 0→1
+      const alpha = (1 - k) * 0.9;
+      const cx = w * 0.5;
+      const cy = stage.ST.laneY - 10;
+
+      const r = 40 + k * Math.min(w, h) * 0.62;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = alpha * 0.75;
+      ctx.strokeStyle = "rgba(255,255,255,1)";
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.globalAlpha = alpha * 0.55;
+      ctx.lineWidth = 18;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.92, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
   }
 
   function drawParticles(){
@@ -561,10 +704,10 @@ import { createStageFlow } from "./stageFlow.js";
 
   // ✅ ペロスイング（必殺）：敵一帯を“消し飛ばす”
   const SKILL = {
-    cd: 10,           // クールダウン（少し重め）
-    kill: true,       // trueなら即死級
-    dmg: 99999,       // kill=falseでもこれでほぼ全滅
-    push: 90,         // ノックバック強め
+    cd: 10,
+    kill: true,
+    dmg: 99999,
+    push: 90,
   };
   let skillReady = true;
   let skillLeft = 0;
@@ -716,12 +859,14 @@ import { createStageFlow } from "./stageFlow.js";
     if (BGM.paused && !paused && !lockedWin) BGM.play().catch(()=>{});
   }
 
-  // ✅ 必殺ペロスイング：敵一帯に必殺技（全体即死級）
+  // ✅ 必殺ペロスイング：敵一帯に必殺技（全体即死級）+ FX
   function useSkill() {
     if (lockedWin || !skillReady) return;
 
+    // FXは敵がいなくても出す（撃った感）
+    spawnSkillFX();
+
     if (enemyUnits.length) {
-      // 派手に揺らして吹き飛ばす
       for (const e of enemyUnits) {
         if (SKILL.kill) e.hp = 0;
         else e.hp -= SKILL.dmg;
@@ -729,13 +874,10 @@ import { createStageFlow } from "./stageFlow.js";
         e.x -= SKILL.push;
         kickShake(e, 7.0, 0.18);
       }
-      // 追加演出（SE）
-      playSE("./assets/se/pop.mp3", 0.9);
-      // ちょいと自分側も揺れる（「放った感」）
+      playSE("./assets/se/pop.mp3", 0.95);
       if (yourUnits[0]) kickShake(yourUnits[0], 3.0, 0.10);
     } else {
-      // 敵がいない時は空振りSEだけ軽く
-      playSE("./assets/se/pop.mp3", 0.4);
+      playSE("./assets/se/pop.mp3", 0.55);
     }
 
     skillReady = false;
@@ -799,6 +941,11 @@ import { createStageFlow } from "./stageFlow.js";
     baseBreakSide = null;
     baseBreakTimer = 0;
 
+    // スキルFXを消す
+    skillFX.flashT = 0;
+    skillFX.ringT = 0;
+    skillFX.slashes.length = 0;
+
     tryStartBgm(true);
   }
 
@@ -831,7 +978,11 @@ import { createStageFlow } from "./stageFlow.js";
 
     enemyUnits.forEach(drawUnit);
     yourUnits.forEach(drawUnit);
+
     drawParticles();
+
+    // ✅ 最前面：必殺FX
+    drawSkillFX();
   }
 
   function refreshUI() {
@@ -864,6 +1015,7 @@ import { createStageFlow } from "./stageFlow.js";
     const dt = dtRaw * (paused || lockedWin ? 1 : timeScale);
 
     updateParticles(dt);
+    updateSkillFX(dt); // ✅
 
     if (!paused && !lockedWin) {
       updateEconomy(dt);
@@ -913,7 +1065,6 @@ import { createStageFlow } from "./stageFlow.js";
 
   // ✅ ステージ選択（stageFlow.js側UI）
   const openStageSelect = () => {
-    // ロック中/ポーズ中でも開ける（好きなら制限してもOK）
     try {
       if (typeof flow.openStageSelect === "function") flow.openStageSelect();
     } catch {}
