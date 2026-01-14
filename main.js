@@ -7,11 +7,7 @@ import { createStageFlow } from "./stageFlow.js";
 
   /* =========================
    * LevelUp (EXP / Power Mul)
-   * =========================
-   * levelup.js を読み込んでいれば window.MilkpopLevelUp が生える想定。
-   * - 勝利時：milkpop:win を投げる（levelup.js側が拾ってEXP付与）
-   * - ユニット生成時：倍率を掛けて強化（atk/hp）
-   */
+   * ========================= */
   function getPowerMul(unitKey) {
     try {
       const api = window.MilkpopLevelUp;
@@ -24,11 +20,7 @@ import { createStageFlow } from "./stageFlow.js";
   }
 
   function emitWinForExp() {
-    // levelup.js のフック（windowイベント）に合わせる
-    try {
-      window.dispatchEvent(new Event("milkpop:win"));
-    } catch {}
-    // 直接叩けるならそれでもOK（保険）
+    try { window.dispatchEvent(new Event("milkpop:win")); } catch {}
     try {
       const api = window.MilkpopLevelUp;
       if (api && typeof api.grantWinExp === "function") api.grantWinExp();
@@ -64,6 +56,30 @@ import { createStageFlow } from "./stageFlow.js";
   const $skillText = document.getElementById("skillText");
 
   const unitBtns = Array.from(document.querySelectorAll(".unitBtn"));
+
+  // ✅ 早送りボタンをHUD右下に追加（x1/x2/x3）
+  let timeScale = Number(localStorage.getItem("timeScale") || "1");
+  if (![1,2,3].includes(timeScale)) timeScale = 1;
+
+  function injectFastForwardButton() {
+    const hudBtns = document.querySelector("#hud .hudBtns");
+    if (!hudBtns || document.getElementById("btnFast")) return;
+
+    const b = document.createElement("button");
+    b.className = "btn icon";
+    b.id = "btnFast";
+    b.title = "早送り";
+    b.textContent = `⏩x${timeScale}`;
+    hudBtns.prepend(b);
+
+    b.onclick = () => {
+      timeScale = (timeScale === 1) ? 2 : (timeScale === 2) ? 3 : 1;
+      localStorage.setItem("timeScale", String(timeScale));
+      b.textContent = `⏩x${timeScale}`;
+      // 早送り開始/解除時に一瞬BGMの再同期（任意）
+      if (!lockedWin && !paused) tryStartBgm(false);
+    };
+  }
 
   /* =========================
    * Assets
@@ -544,7 +560,6 @@ import { createStageFlow } from "./stageFlow.js";
   function makeYourUnit(key, x) {
     const d = UNIT_DEFS[key];
 
-    // ✅ レベルアップ倍率を atk/hp に反映
     const mul = getPowerMul(key);
     const hp = Math.floor(d.hp * mul);
     const atk = Math.floor(d.atk * mul);
@@ -696,7 +711,6 @@ import { createStageFlow } from "./stageFlow.js";
       lockedWin = true;
       BGM.pause();
 
-      // ✅ 勝利EXP付与（levelup.jsへ通知）
       emitWinForExp();
 
       spawnConfetti();
@@ -803,8 +817,12 @@ import { createStageFlow } from "./stageFlow.js";
    * Loop
    * ========================= */
   function loop(t) {
-    const dt = Math.min(0.05, (t - tPrev) / 1000);
+    // ✅ 生のdt（描画用）
+    const dtRaw = Math.min(0.05, (t - tPrev) / 1000);
     tPrev = t;
+
+    // ✅ 早送りを進行系にだけ掛ける
+    const dt = dtRaw * (paused || lockedWin ? 1 : timeScale);
 
     updateParticles(dt);
 
@@ -860,9 +878,17 @@ import { createStageFlow } from "./stageFlow.js";
     loadStage(cfg);
   });
 
-  // 任意：キーボードでSでセレクト（便利）
+  // 任意：キーボード
   window.addEventListener("keydown", (e) => {
-    if (e.key.toLowerCase() === "s") flow.openStageSelect();
+    const k = e.key.toLowerCase();
+    if (k === "s") flow.openStageSelect();
+    // ✅ F で早送り切替
+    if (k === "f") {
+      timeScale = (timeScale === 1) ? 2 : (timeScale === 2) ? 3 : 1;
+      localStorage.setItem("timeScale", String(timeScale));
+      const b = document.getElementById("btnFast");
+      if (b) b.textContent = `⏩x${timeScale}`;
+    }
   });
 
   /* =========================
@@ -871,6 +897,7 @@ import { createStageFlow } from "./stageFlow.js";
   fitCanvas();
   stage.resize(cv);
   injectAudioSliders();
+  injectFastForwardButton();
 
   loadStage(stageCfg);
 
