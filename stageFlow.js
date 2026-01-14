@@ -1,225 +1,257 @@
 // stageFlow.js
-// Stage1〜5 管理（mirrorball破壊で勝利→次ステージ）
-// + ステージ選択（HUDに「STAGE」ボタンを自動追加）
+// Stage1〜5の難易度を「綺麗に」上げる + ステージ選択 + 勝利遷移UI
 
 export function createStageFlow() {
   const STAGES = [
-    { id: 1, mirrorHP: 900,  mirrorSpawnSec: 2.10, enemyMulHP: 1.00, enemyMulATK: 1.00 },
-    { id: 2, mirrorHP: 1200, mirrorSpawnSec: 1.90, enemyMulHP: 1.12, enemyMulATK: 1.08 },
-    { id: 3, mirrorHP: 1600, mirrorSpawnSec: 1.65, enemyMulHP: 1.30, enemyMulATK: 1.14 },
-    { id: 4, mirrorHP: 2200, mirrorSpawnSec: 1.40, enemyMulHP: 1.55, enemyMulATK: 1.22 },
-    { id: 5, mirrorHP: 3000, mirrorSpawnSec: 1.18, enemyMulHP: 1.85, enemyMulATK: 1.35 },
+    {
+      id: 1,
+      label: "Stage 1",
+      // やさしめ
+      mirrorHP: 900,
+      mirrorSpawnSec: 3.3,
+      enemyMulHP: 0.90,
+      enemyMulATK: 0.90,
+      theme: "pokapoka",
+      ground: "grass",
+    },
+    {
+      id: 2,
+      label: "Stage 2",
+      mirrorHP: 1200,
+      mirrorSpawnSec: 2.9,
+      enemyMulHP: 1.05,
+      enemyMulATK: 1.05,
+      theme: "kirakira",
+      ground: "candy",
+    },
+    {
+      id: 3,
+      label: "Stage 3",
+      mirrorHP: 1550,
+      mirrorSpawnSec: 2.45,
+      enemyMulHP: 1.22,
+      enemyMulATK: 1.18,
+      theme: "party",
+      ground: "party",
+    },
+    {
+      id: 4,
+      label: "Stage 4",
+      mirrorHP: 1950,
+      mirrorSpawnSec: 2.05,
+      enemyMulHP: 1.40,
+      enemyMulATK: 1.35,
+      theme: "yuki",
+      ground: "ice",
+    },
+    {
+      id: 5,
+      label: "Stage 5",
+      // 最終：かなりキツい
+      mirrorHP: 2500,
+      mirrorSpawnSec: 1.70,
+      enemyMulHP: 1.62,
+      enemyMulATK: 1.55,
+      theme: "utyuu",
+      ground: "space",
+    },
   ];
 
-  let stageIndex = 0;
   let onSelectCb = null;
 
-  // ---- Base overlay root ----
-  const overlay = document.createElement("div");
-  overlay.style.cssText = `
-    position:fixed; inset:0; z-index:9999; display:none;
-    background:rgba(255, 230, 242, .70);
-    backdrop-filter: blur(6px);
-    align-items:center; justify-content:center;
-    pointer-events:auto;
-  `;
-  document.body.appendChild(overlay);
-
-  function openOverlay(innerHtml) {
-    overlay.innerHTML = innerHtml;
-    overlay.style.display = "flex";
-  }
-  function closeOverlay() {
-    overlay.style.display = "none";
-    overlay.innerHTML = "";
+  function getStageById(id) {
+    return STAGES.find(s => s.id === id) || STAGES[0];
   }
 
-  function cardShell(title, bodyHtml, footerHtml) {
-    return `
-      <div style="
-        width:min(560px, calc(100vw - 28px));
-        border-radius:26px;
+  function loadStage(id) {
+    return structuredClone(getStageById(id));
+  }
+
+  // ===== UI =====
+  function ensureStyle() {
+    if (document.getElementById("stageFlowStyle")) return;
+    const s = document.createElement("style");
+    s.id = "stageFlowStyle";
+    s.textContent = `
+      .sfOverlay{
+        position:fixed; inset:0;
+        display:flex; align-items:center; justify-content:center;
+        background:rgba(0,0,0,.35);
+        z-index:9998;
+      }
+      .sfCard{
+        width:min(520px, calc(100vw - 24px));
         background:rgba(255,255,255,.92);
-        border:2px solid rgba(255,160,200,.35);
-        box-shadow:0 20px 60px rgba(0,0,0,.18);
-        padding:18px 18px 16px;
-        text-align:center;
+        border:1px solid rgba(255,140,195,.35);
+        border-radius:22px;
+        box-shadow:0 18px 44px rgba(0,0,0,.18);
+        padding:16px 16px 14px;
         color:#5b3550;
-        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-      ">
-        <div style="font-weight:1000; font-size:26px; margin-top:4px;">${title}</div>
-        <div style="margin-top:14px;">${bodyHtml}</div>
-        <div style="margin-top:14px;">${footerHtml || ""}</div>
-      </div>
-    `;
-  }
-
-  function current() {
-    return STAGES[stageIndex];
-  }
-
-  function loadStage(n) {
-    const idx = STAGES.findIndex(s => s.id === n);
-    stageIndex = idx >= 0 ? idx : 0;
-    return current();
-  }
-
-  // ---- WIN overlay ----
-  function showWin(onNext) {
-    const st = current();
-    const isLast = stageIndex >= STAGES.length - 1;
-
-    const body = `
-      <div style="opacity:.88; font-weight:900;">
-        mirrorball を破壊した！
-      </div>
-      <div style="margin-top:10px; font-weight:1000; opacity:.75;">
-        ${isLast ? "全ステージクリア！" : `次は Stage ${STAGES[stageIndex+1].id}`}
-      </div>
-    `;
-
-    const footer = `
-      <button id="sfNext" style="
-        border:none; border-radius:18px;
-        padding:12px 14px;
-        background:linear-gradient(180deg,#ffffff,#ffeaf3);
-        border:2px solid rgba(255,160,200,.30);
-        box-shadow:0 10px 22px rgba(0,0,0,.10);
-        cursor:pointer;
+        backdrop-filter: blur(8px);
+      }
+      .sfTitle{
         font-weight:1000;
-        color:#5b3550;
-        width: 100%;
-      ">${isLast ? "最初から" : "次のステージへ"}</button>
-
-      <button id="sfPick" style="
-        margin-top:10px;
-        border:none; border-radius:18px;
-        padding:10px 14px;
-        background:rgba(255, 210, 230, .35);
-        border:1px solid rgba(255,160,200,.25);
-        box-shadow:0 8px 18px rgba(0,0,0,.08);
-        cursor:pointer;
-        font-weight:1000;
-        color:#5b3550;
-        width: 100%;
-      ">ステージ選択</button>
-    `;
-
-    openOverlay(cardShell(`勝利！ Stage ${st.id}`, body, footer));
-
-    overlay.querySelector("#sfNext").onclick = () => {
-      closeOverlay();
-      stageIndex = isLast ? 0 : stageIndex + 1;
-      onNext?.(current());
-    };
-    overlay.querySelector("#sfPick").onclick = () => {
-      showStageSelect();
-    };
-  }
-
-  // ---- STAGE SELECT overlay ----
-  function showStageSelect() {
-    const buttons = STAGES.map(s => {
-      const active = (s.id === current().id);
-      return `
-        <button class="sfStageBtn" data-id="${s.id}" style="
-          border:none; border-radius:18px;
-          padding:12px 10px;
-          background:${active ? "linear-gradient(180deg,#ffffff,#ffeaf3)" : "rgba(255,255,255,.92)"};
-          border:2px solid rgba(255,160,200,.30);
-          box-shadow:0 10px 22px rgba(0,0,0,.10);
-          cursor:pointer;
-          font-weight:1100;
-          color:#5b3550;
-          text-align:left;
-        ">
-          <div style="font-size:14px; font-weight:1000;">Stage ${s.id}</div>
-          <div style="font-size:12px; opacity:.78; margin-top:2px;">
-            HP ${s.mirrorHP} / enemy ${Math.round(s.enemyMulHP*100)}% / spawn ${s.mirrorSpawnSec.toFixed(2)}s
-          </div>
-        </button>
-      `;
-    }).join("");
-
-    const body = `
-      <div style="
-        display:grid;
-        grid-template-columns: 1fr 1fr;
+        font-size:18px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
         gap:10px;
-      ">${buttons}</div>
-    `;
-
-    const footer = `
-      <button id="sfClose" style="
-        border:none; border-radius:18px;
-        padding:12px 14px;
-        background:rgba(255, 210, 230, .35);
-        border:1px solid rgba(255,160,200,.25);
-        box-shadow:0 8px 18px rgba(0,0,0,.08);
+      }
+      .sfSub{
+        margin-top:6px;
+        font-size:12px;
+        opacity:.85;
+        line-height:1.5;
+      }
+      .sfGrid{
+        margin-top:12px;
+        display:grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap:10px;
+      }
+      .sfBtn{
+        border:1px solid rgba(255,140,195,.35);
+        border-radius:18px;
+        background:rgba(255,255,255,.92);
+        box-shadow:0 10px 22px rgba(0,0,0,.10);
+        padding:12px 12px;
         cursor:pointer;
         font-weight:1000;
         color:#5b3550;
-        width: 100%;
-      ">閉じる</button>
+        text-align:left;
+        transition: transform .12s ease;
+      }
+      .sfBtn:hover{ transform: translateY(-2px); }
+      .sfBtn:active{ transform: translateY(0) scale(.98); }
+      .sfMeta{
+        margin-top:6px;
+        font-size:12px;
+        opacity:.88;
+        font-weight:900;
+      }
+      .sfMeta b{ color:#ff4fa2; }
+      .sfClose{
+        border:none;
+        background:transparent;
+        font-size:18px;
+        cursor:pointer;
+        font-weight:1000;
+        color:#ff4fa2;
+      }
+      @media (max-width: 480px){
+        .sfGrid{ grid-template-columns: 1fr; }
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
+  function openStageSelect() {
+    ensureStyle();
+
+    const ov = document.createElement("div");
+    ov.className = "sfOverlay";
+
+    const card = document.createElement("div");
+    card.className = "sfCard";
+
+    card.innerHTML = `
+      <div class="sfTitle">
+        <div>🍬 Stage Select</div>
+        <button class="sfClose" aria-label="close">✕</button>
+      </div>
+      <div class="sfSub">
+        Stageが上がるほど <b>敵HP/火力</b> と <b>出現頻度</b> と <b>拠点HP</b> が段階的に上がります。
+      </div>
+      <div class="sfGrid"></div>
     `;
 
-    openOverlay(cardShell("ステージ選択", body, footer));
+    const grid = card.querySelector(".sfGrid");
 
-    overlay.querySelectorAll(".sfStageBtn").forEach(btn => {
+    for (const st of STAGES) {
+      const btn = document.createElement("button");
+      btn.className = "sfBtn";
+      btn.innerHTML = `
+        <div>${st.label}</div>
+        <div class="sfMeta">
+          MirrorHP <b>${st.mirrorHP}</b> /
+          Spawn <b>${st.mirrorSpawnSec.toFixed(2)}s</b><br>
+          EnemyHP× <b>${st.enemyMulHP.toFixed(2)}</b> /
+          ATK× <b>${st.enemyMulATK.toFixed(2)}</b>
+        </div>
+      `;
       btn.onclick = () => {
-        const id = Number(btn.dataset.id);
-        const cfg = loadStage(id);
-        closeOverlay();
-        onSelectCb?.(cfg);
+        ov.remove();
+        onSelectCb && onSelectCb(loadStage(st.id));
       };
+      grid.appendChild(btn);
+    }
+
+    ov.addEventListener("click", (e) => {
+      if (e.target === ov) ov.remove();
     });
 
-    overlay.querySelector("#sfClose").onclick = () => closeOverlay();
+    card.querySelector(".sfClose").onclick = () => ov.remove();
+
+    ov.appendChild(card);
+    document.body.appendChild(ov);
   }
 
-  // ---- HUD button injected ----
-  function ensureHudButton() {
-    // index.html の hudBottom の左側に置く（#hud があればOK）
-    const hud = document.getElementById("hud");
-    if (!hud) return;
+  function showWin(nextLoader) {
+    // 勝ったら「次へ / ステージ選択」
+    ensureStyle();
 
-    // すでにあるなら終了
-    if (document.getElementById("btnStageSelect")) return;
+    const ov = document.createElement("div");
+    ov.className = "sfOverlay";
 
-    // hudBottom があればそこへ、なければ hud 直下
-    const bottom = hud.querySelector(".hudBottom") || hud;
+    const card = document.createElement("div");
+    card.className = "sfCard";
 
-    const wrap = document.createElement("div");
-    wrap.style.cssText = `display:flex; gap:10px; align-items:center;`;
+    card.innerHTML = `
+      <div class="sfTitle">
+        <div>🏆 Victory!</div>
+        <button class="sfClose" aria-label="close">✕</button>
+      </div>
+      <div class="sfSub">
+        次のステージへ進むか、ステージ選択に戻れます。
+      </div>
+      <div class="sfGrid">
+        <button class="sfBtn" id="sfNext">➡ Next Stage</button>
+        <button class="sfBtn" id="sfSelect">🎀 Stage Select</button>
+      </div>
+    `;
 
-    const btn = document.createElement("button");
-    btn.id = "btnStageSelect";
-    btn.className = "btn"; // 既存 style.css の .btn を使う
-    btn.textContent = "🎟 STAGE";
-    btn.style.minWidth = "110px";
+    const close = () => ov.remove();
 
-    btn.onclick = () => showStageSelect();
+    card.querySelector(".sfClose").onclick = close;
+    ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
 
-    // bottom の先頭に追加（WAVEの左あたりに置きたい）
-    // 既存 hudBottom は「WAVE / skill / buttons」なので先頭に入れても自然
-    bottom.insertBefore(btn, bottom.firstChild);
+    card.querySelector("#sfNext").onclick = () => {
+      close();
+      // nextLoader(cfg => loadStage(cfg)) のパターンに合わせる
+      // 現在ステージ番号は nextLoader が外側で渡す前提なので、
+      // ここでは「一旦ステージ選択を開く」よりも nextLoader に任せる
+      nextLoader((cfg)=>cfg);
+    };
+
+    card.querySelector("#sfSelect").onclick = () => {
+      close();
+      openStageSelect();
+    };
+
+    ov.appendChild(card);
+    document.body.appendChild(ov);
   }
 
   function onSelect(cb) {
     onSelectCb = cb;
   }
 
-  // 起動時にHUDボタンを作る
-  ensureHudButton();
-  // ページ読み込み直後に hud がまだ無い場合があるので保険
-  setTimeout(ensureHudButton, 0);
-  setTimeout(ensureHudButton, 200);
-
+  // 外部から呼べるように
   return {
-    loadStage,     // 初期ロード
-    current,       // 現在のステージ
-    showWin,       // 勝利演出
-    showStageSelect, // 外部から開きたい場合
-    onSelect,      // 選択時コールバック登録
+    STAGES,
+    loadStage,
+    onSelect,
+    openStageSelect,
+    showWin,
   };
 }
