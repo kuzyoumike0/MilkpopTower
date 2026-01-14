@@ -57,7 +57,7 @@ import { createStageFlow } from "./stageFlow.js";
 
   const unitBtns = Array.from(document.querySelectorAll(".unitBtn"));
 
-  // ✅ 早送りボタンをHUD右下に追加（x1/x2/x3）
+  // ✅ 早送り（x1/x2/x3）
   let timeScale = Number(localStorage.getItem("timeScale") || "1");
   if (![1,2,3].includes(timeScale)) timeScale = 1;
 
@@ -76,8 +76,24 @@ import { createStageFlow } from "./stageFlow.js";
       timeScale = (timeScale === 1) ? 2 : (timeScale === 2) ? 3 : 1;
       localStorage.setItem("timeScale", String(timeScale));
       b.textContent = `⏩x${timeScale}`;
-      // 早送り開始/解除時に一瞬BGMの再同期（任意）
       if (!lockedWin && !paused) tryStartBgm(false);
+    };
+  }
+
+  // ✅ ステージ選択ボタン（HUD下段に追加：🗺）
+  function injectStageSelectButton(openStageSelectFn) {
+    const hudBtns = document.querySelector("#hud .hudBtns");
+    if (!hudBtns || document.getElementById("btnStageSelect")) return;
+
+    const b = document.createElement("button");
+    b.className = "btn icon";
+    b.id = "btnStageSelect";
+    b.title = "ステージ選択";
+    b.textContent = "🗺";
+    hudBtns.prepend(b);
+
+    b.onclick = () => {
+      if (typeof openStageSelectFn === "function") openStageSelectFn();
     };
   }
 
@@ -266,18 +282,21 @@ import { createStageFlow } from "./stageFlow.js";
   const stage = createStage();
   const flow  = createStageFlow();
 
+  // ✅ gameMenu.js から呼べるように公開（これで「🗺ステージ選択」ボタンが動く）
+  window.flow = flow;
+  window.StageFlow = flow;
+
   /* =========================
    * Game Config
    * ========================= */
   const GAME = {
     yourBaseHPMax: 2200,
-    candyMaxBase: 1000,     // ✅ 上限1000
+    candyMaxBase: 1000,
     candyRegenBase: 32,
     oakSpawnSec: 3.2,
     maxUnitsEachSide: 34,
   };
 
-  // ✅ bunny → bunny3 → bunny4 → bunny5 → reabunny の順で強い
   const UNIT_DEFS = {
     babybunny:{ cost: 90, hp:170,  atk:14, range:24,  speed:60, atkCd:0.55, size:24, spawnCd:1.8 },
 
@@ -286,12 +305,10 @@ import { createStageFlow } from "./stageFlow.js";
     bunny4:   { cost:340, hp:800,  atk:46, range:32,  speed:44, atkCd:0.78, size:30, spawnCd:4.4 },
     bunny5:   { cost:460, hp:1200, atk:62, range:36,  speed:40, atkCd:0.86, size:32, spawnCd:5.6 },
 
-    // 遠距離・最強
     reabunny: { cost:620, hp:980,  atk:88, range:170, speed:34, atkCd:0.95, size:32, spawnCd:7.2 },
   };
 
   function enemyStatsForStage(cfg) {
-    // 基礎値×倍率 + ステージで少しテンポUP
     const baseHP  = 170;
     const baseATK = 18;
     return {
@@ -535,14 +552,20 @@ import { createStageFlow } from "./stageFlow.js";
   let mirrorHPMax = stageCfg.mirrorHP;
   let mirrorHP    = stageCfg.mirrorHP;
 
-  let yourBaseHPMax = GAME.yourBaseHPMax;
+  const yourBaseHPMax = GAME.yourBaseHPMax;
   let yourBaseHP    = yourBaseHPMax;
 
   let candyMax   = GAME.candyMaxBase;
-  let candy      = 400; // ✅ 上限1000に合わせて開始は少し多め
-  let candyRegen = GAME.candyRegenBase;
+  let candy      = 400;
+  const candyRegen = GAME.candyRegenBase;
 
-  const SKILL = { cd: 9, dmg: 24, push: 20 };
+  // ✅ ペロスイング（必殺）：敵一帯を“消し飛ばす”
+  const SKILL = {
+    cd: 10,           // クールダウン（少し重め）
+    kill: true,       // trueなら即死級
+    dmg: 99999,       // kill=falseでもこれでほぼ全滅
+    push: 90,         // ノックバック強め
+  };
   let skillReady = true;
   let skillLeft = 0;
 
@@ -561,7 +584,7 @@ import { createStageFlow } from "./stageFlow.js";
     const d = UNIT_DEFS[key];
 
     const mul = getPowerMul(key);
-    const hp = Math.floor(d.hp * mul);
+    const hp  = Math.floor(d.hp  * mul);
     const atk = Math.floor(d.atk * mul);
 
     return {
@@ -693,10 +716,28 @@ import { createStageFlow } from "./stageFlow.js";
     if (BGM.paused && !paused && !lockedWin) BGM.play().catch(()=>{});
   }
 
+  // ✅ 必殺ペロスイング：敵一帯に必殺技（全体即死級）
   function useSkill() {
     if (lockedWin || !skillReady) return;
-    for (const e of enemyUnits) { e.hp -= SKILL.dmg; e.x -= SKILL.push; kickShake(e, 4.2, 0.12); }
-    playSE("./assets/se/pop.mp3", 0.6);
+
+    if (enemyUnits.length) {
+      // 派手に揺らして吹き飛ばす
+      for (const e of enemyUnits) {
+        if (SKILL.kill) e.hp = 0;
+        else e.hp -= SKILL.dmg;
+
+        e.x -= SKILL.push;
+        kickShake(e, 7.0, 0.18);
+      }
+      // 追加演出（SE）
+      playSE("./assets/se/pop.mp3", 0.9);
+      // ちょいと自分側も揺れる（「放った感」）
+      if (yourUnits[0]) kickShake(yourUnits[0], 3.0, 0.10);
+    } else {
+      // 敵がいない時は空振りSEだけ軽く
+      playSE("./assets/se/pop.mp3", 0.4);
+    }
+
     skillReady = false;
     skillLeft = SKILL.cd;
   }
@@ -817,11 +858,9 @@ import { createStageFlow } from "./stageFlow.js";
    * Loop
    * ========================= */
   function loop(t) {
-    // ✅ 生のdt（描画用）
     const dtRaw = Math.min(0.05, (t - tPrev) / 1000);
     tPrev = t;
 
-    // ✅ 早送りを進行系にだけ掛ける
     const dt = dtRaw * (paused || lockedWin ? 1 : timeScale);
 
     updateParticles(dt);
@@ -872,18 +911,24 @@ import { createStageFlow } from "./stageFlow.js";
 
   if ($btnSkill) $btnSkill.onclick = () => useSkill();
 
-  // ステージ選択（stageFlow.js側UI）
+  // ✅ ステージ選択（stageFlow.js側UI）
+  const openStageSelect = () => {
+    // ロック中/ポーズ中でも開ける（好きなら制限してもOK）
+    try {
+      if (typeof flow.openStageSelect === "function") flow.openStageSelect();
+    } catch {}
+  };
+
   flow.onSelect(cfg => {
     BGM.pause();
     loadStage(cfg);
   });
 
-  // 任意：キーボード
+  // キーボード
   window.addEventListener("keydown", (e) => {
     const k = e.key.toLowerCase();
-    if (k === "s") flow.openStageSelect();
-    // ✅ F で早送り切替
-    if (k === "f") {
+    if (k === "s") openStageSelect();      // Sでステージ選択
+    if (k === "f") {                       // Fで早送り
       timeScale = (timeScale === 1) ? 2 : (timeScale === 2) ? 3 : 1;
       localStorage.setItem("timeScale", String(timeScale));
       const b = document.getElementById("btnFast");
@@ -898,6 +943,7 @@ import { createStageFlow } from "./stageFlow.js";
   stage.resize(cv);
   injectAudioSliders();
   injectFastForwardButton();
+  injectStageSelectButton(openStageSelect);
 
   loadStage(stageCfg);
 
