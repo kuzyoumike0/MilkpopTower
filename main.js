@@ -38,7 +38,7 @@ import { createStageFlow } from "./stageFlow.js";
   /* =========================
    * Assets
    * ========================= */
-  function loadImage(src) {
+  function loadImage(src){
     const img = new Image();
     img.src = src;
     return img;
@@ -53,41 +53,48 @@ import { createStageFlow } from "./stageFlow.js";
     bunny5:    loadImage("./assets/Unit/bunny5.png"),
     reabunny:  loadImage("./assets/Unit/reabunny.png"),
   };
-
   const IMG_ENEMY = {
     enemy: loadImage("./assets/enemy/enemybunny1.png"),
   };
-
   const ITEM = {
     oak:        loadImage("./assets/item/oak.png"),
     mirrorball: loadImage("./assets/item/mirrorball.png"),
   };
 
-  function pickYourImg(key) {
+  function pickYourImg(key){
     return isReady(IMG_YOUR[key]) ? IMG_YOUR[key] : IMG_YOUR.bunny;
   }
-  function pickEnemyImg() {
+  function pickEnemyImg(){
     return IMG_ENEMY.enemy;
   }
 
   /* =========================
- * BGM
- * ========================= */
-const BGM = new Audio("./assets/bgm/8-bit_Aggressive1.mp3");
-BGM.loop = true;
-BGM.volume = 0.45; // お好みで（0.0〜1.0）
+   * AUDIO (BGM / SE)
+   * ========================= */
+  const AudioState = {
+    bgmVol: Number(localStorage.getItem("bgmVol") ?? 0.45),
+    seVol:  Number(localStorage.getItem("seVol")  ?? 0.7),
+  };
 
-let bgmUnlocked = false;
+  const BGM = new Audio("./assets/bgm/8-bit_Aggressive1.mp3");
+  BGM.loop = true;
+  BGM.volume = AudioState.bgmVol;
 
-// ブラウザの自動再生対策（最初の操作で解放）
-function unlockBgm() {
-  if (bgmUnlocked) return;
-  bgmUnlocked = true;
-  BGM.play().catch(()=>{});
-  BGM.pause();
-  BGM.currentTime = 0;
-}
-window.addEventListener("pointerdown", unlockBgm, { once:true });
+  let bgmUnlocked = false;
+  function unlockBgm(){
+    if (bgmUnlocked) return;
+    bgmUnlocked = true;
+    BGM.play().catch(()=>{});
+    BGM.pause();
+    BGM.currentTime = 0;
+  }
+  window.addEventListener("pointerdown", unlockBgm, { once:true });
+
+  function playSE(src, volMul = 1){
+    const a = new Audio(src);
+    a.volume = Math.min(1, AudioState.seVol * volMul);
+    a.play().catch(()=>{});
+  }
 
   /* =========================
    * Stage / Flow
@@ -116,12 +123,12 @@ window.addEventListener("pointerdown", unlockBgm, { once:true });
     reabunny: { cost:620,  hp:520, atk:46, range:140,speed:34, atkCd:0.95, size:32, spawnCd:7.2 },
   };
 
-  function enemyStatsForStage(stageCfg) {
+  function enemyStatsForStage(cfg){
     return {
-      hp: Math.floor(160 * stageCfg.enemyMulHP),
-      atk: Math.floor(18 * stageCfg.enemyMulATK),
-      speed: 48 + stageCfg.id * 2,
-      atkCd: Math.max(0.45, 0.65 - stageCfg.id * 0.02),
+      hp: Math.floor(160 * cfg.enemyMulHP),
+      atk: Math.floor(18  * cfg.enemyMulATK),
+      speed: 48 + cfg.id * 2,
+      atkCd: Math.max(0.45, 0.65 - cfg.id * 0.02),
       size: 26,
       range: 24,
     };
@@ -130,42 +137,40 @@ window.addEventListener("pointerdown", unlockBgm, { once:true });
   /* =========================
    * State
    * ========================= */
-  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-  let paused = false;
-  let tPrev = performance.now();
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  let paused=false;
+  let tPrev=performance.now();
 
-  let stageCfg = flow.loadStage(1);
-  let stageId = stageCfg.id;
+  let stageCfg=flow.loadStage(1);
+  let stageId=stageCfg.id;
 
-  let mirrorHPMax = stageCfg.mirrorHP;
-  let mirrorHP = stageCfg.mirrorHP;
+  let mirrorHPMax=stageCfg.mirrorHP;
+  let mirrorHP=stageCfg.mirrorHP;
 
-  let yourBaseHPMax = GAME.yourBaseHPMax;
-  let yourBaseHP = yourBaseHPMax;
+  let yourBaseHP=GAME.yourBaseHPMax;
+  let candyMax=GAME.candyMaxBase;
+  let candy=220;
+  let candyRegen=GAME.candyRegenBase;
 
-  let candyMax = GAME.candyMaxBase;
-  let candy = 220;
-  let candyRegen = GAME.candyRegenBase;
+  let skillReady=true;
+  let skillLeft=0;
 
-  let skillReady = true;
-  let skillLeft = 0;
+  const yourUnits=[];
+  const enemyUnits=[];
+  const spawnCdLeft=Object.create(null);
 
-  const yourUnits = [];
-  const enemyUnits = [];
-  const spawnCdLeft = Object.create(null);
-
-  let oakTimer = 0;
-  let mirrorTimer = 0;
-  let lockedWin = false;
+  let oakTimer=0;
+  let mirrorTimer=0;
+  let lockedWin=false;
 
   /* =========================
    * Units
    * ========================= */
-  function makeYourUnit(key, x) {
-    const d = UNIT_DEFS[key];
+  function makeYourUnit(key,x){
+    const d=UNIT_DEFS[key];
     return {
       side:"your", key, x,
-      y: stage.ST.laneY,
+      y:stage.ST.laneY,
       hp:d.hp, hpMax:d.hp,
       atk:d.atk, range:d.range,
       speed:d.speed, atkCd:d.atkCd, cdLeft:0,
@@ -173,24 +178,23 @@ window.addEventListener("pointerdown", unlockBgm, { once:true });
     };
   }
 
-  function spawnYour(key) {
-    const d = UNIT_DEFS[key];
-    if (!d || candy < d.cost) return;
-    if ((spawnCdLeft[key]||0)>0) return;
-
-    candy -= d.cost;
-    spawnCdLeft[key] = d.spawnCd;
-    yourUnits.push(makeYourUnit(key, stage.oakX() - 40));
+  function spawnYour(key){
+    const d=UNIT_DEFS[key];
+    if(!d||candy<d.cost||(spawnCdLeft[key]||0)>0||lockedWin) return;
+    candy-=d.cost;
+    spawnCdLeft[key]=d.spawnCd;
+    yourUnits.push(makeYourUnit(key,stage.oakX()-40));
+    playSE("./assets/se/pop.mp3",0.9);
   }
 
-  function spawnFromOak() {
-    if (yourUnits.length >= GAME.maxUnitsEachSide) return;
-    yourUnits.push(makeYourUnit("bunny", stage.oakX() - 40));
+  function spawnFromOak(){
+    if(yourUnits.length>=GAME.maxUnitsEachSide) return;
+    yourUnits.push(makeYourUnit("bunny",stage.oakX()-40));
   }
 
-  function spawnFromMirrorball() {
-    if (enemyUnits.length >= GAME.maxUnitsEachSide) return;
-    const s = enemyStatsForStage(stageCfg);
+  function spawnFromMirrorball(){
+    if(enemyUnits.length>=GAME.maxUnitsEachSide) return;
+    const s=enemyStatsForStage(stageCfg);
     enemyUnits.push({
       side:"enemy",
       x:stage.mirrorX()+60,
@@ -209,18 +213,17 @@ window.addEventListener("pointerdown", unlockBgm, { once:true });
     const targets=isYour?enemyUnits:yourUnits;
     const baseX=isYour?stage.mirrorX():stage.oakX();
 
-    let target=null, best=1e9;
+    let target=null,best=1e9;
     for(const t of targets){
       const d=Math.abs(u.x-t.x);
       if(d<best){best=d;target=t;}
     }
 
     const tx=target?target.x:baseX;
-    const dist=Math.abs(u.x-tx);
-    if(dist<=u.range){
+    if(Math.abs(u.x-tx)<=u.range){
       if(u.cdLeft<=0){
         if(target) target.hp-=u.atk;
-        else isYour ? mirrorHP-=u.atk : yourBaseHP-=u.atk;
+        else isYour?mirrorHP-=u.atk:yourBaseHP-=u.atk;
         u.cdLeft=u.atkCd;
       }
     }else{
@@ -229,7 +232,7 @@ window.addEventListener("pointerdown", unlockBgm, { once:true });
   }
 
   /* =========================
-   * Game loop helpers
+   * Loop helpers
    * ========================= */
   function cleanupDead(){
     for(let i=enemyUnits.length-1;i>=0;i--){
@@ -256,21 +259,20 @@ window.addEventListener("pointerdown", unlockBgm, { once:true });
 
   function updateSpawners(dt){
     oakTimer+=dt;
-    if(oakTimer>=GAME.oakSpawnSec){
-      oakTimer=0; spawnFromOak();
-    }
+    if(oakTimer>=GAME.oakSpawnSec){ oakTimer=0; spawnFromOak(); }
     mirrorTimer+=dt;
-    if(mirrorTimer>=stageCfg.mirrorSpawnSec){
-      mirrorTimer=0; spawnFromMirrorball();
-    }
+    if(mirrorTimer>=stageCfg.mirrorSpawnSec){ mirrorTimer=0; spawnFromMirrorball(); }
   }
 
   function checkWinLose(){
     if(!lockedWin && mirrorHP<=0){
       lockedWin=true;
+      BGM.pause();
+      playSE("./assets/se/win.mp3",1.0);
       flow.showWin(cfg=>loadStage(cfg));
     }
     if(!lockedWin && yourBaseHP<=0){
+      BGM.pause();
       loadStage(stageCfg);
     }
   }
@@ -280,13 +282,17 @@ window.addEventListener("pointerdown", unlockBgm, { once:true });
     stageId=cfg.id;
     mirrorHPMax=cfg.mirrorHP;
     mirrorHP=cfg.mirrorHP;
-    yourBaseHP=yourBaseHPMax;
+    yourBaseHP=GAME.yourBaseHPMax;
     candy=220;
     yourUnits.length=0;
     enemyUnits.length=0;
     for(const k in spawnCdLeft) delete spawnCdLeft[k];
     oakTimer=mirrorTimer=0;
     lockedWin=false;
+    if(bgmUnlocked){
+      BGM.currentTime=0;
+      BGM.play().catch(()=>{});
+    }
   }
 
   /* =========================
@@ -300,7 +306,7 @@ window.addEventListener("pointerdown", unlockBgm, { once:true });
 
   function render(){
     stage.render(ctx,cv,{oak:ITEM.oak,mirrorball:ITEM.mirrorball},{
-      stageId, mirrorHP, mirrorHPMax, yourBaseHP, yourBaseHPMax
+      stageId, mirrorHP, mirrorHPMax, yourBaseHP, yourBaseHPMax:GAME.yourBaseHPMax
     });
     enemyUnits.forEach(drawUnit);
     yourUnits.forEach(drawUnit);
@@ -325,13 +331,57 @@ window.addEventListener("pointerdown", unlockBgm, { once:true });
   }
 
   /* =========================
+   * AUDIO SLIDERS (HUD inject)
+   * ========================= */
+  function injectAudioSliders(){
+    const hud=document.getElementById("hud");
+    if(!hud||document.getElementById("audioSliders")) return;
+
+    const wrap=document.createElement("div");
+    wrap.id="audioSliders";
+    wrap.style.cssText=`
+      display:flex;gap:10px;align-items:center;
+      background:rgba(255,255,255,.85);
+      border:1px solid rgba(255,160,200,.35);
+      border-radius:14px;padding:6px 10px;
+      box-shadow:0 6px 14px rgba(0,0,0,.10);
+      font-weight:900;color:#5b3550;
+    `;
+    wrap.innerHTML=`
+      <label style="display:flex;align-items:center;gap:6px;">
+        🎵 <input id="bgmSlider" type="range" min="0" max="1" step="0.01"
+          value="${AudioState.bgmVol}" style="accent-color:#ff6fae;">
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;">
+        🔊 <input id="seSlider" type="range" min="0" max="1" step="0.01"
+          value="${AudioState.seVol}" style="accent-color:#ff6fae;">
+      </label>
+    `;
+    hud.appendChild(wrap);
+
+    const bgmS=wrap.querySelector("#bgmSlider");
+    const seS =wrap.querySelector("#seSlider");
+
+    bgmS.oninput=()=>{
+      AudioState.bgmVol=Number(bgmS.value);
+      BGM.volume=AudioState.bgmVol;
+      localStorage.setItem("bgmVol",AudioState.bgmVol);
+    };
+    seS.oninput=()=>{
+      AudioState.seVol=Number(seS.value);
+      localStorage.setItem("seVol",AudioState.seVol);
+      playSE("./assets/se/pop.mp3",0.5);
+    };
+  }
+
+  /* =========================
    * Loop
    * ========================= */
   function loop(t){
     const dt=Math.min(0.05,(t-tPrev)/1000);
     tPrev=t;
 
-    if(!paused && !lockedWin){
+    if(!paused&&!lockedWin){
       updateEconomy(dt);
       updateSpawners(dt);
       yourUnits.forEach(u=>updateUnit(u,dt));
@@ -349,19 +399,29 @@ window.addEventListener("pointerdown", unlockBgm, { once:true });
    * Events
    * ========================= */
   unitBtns.forEach(b=>b.onclick=()=>spawnYour(b.dataset.unit));
-  $btnPause.onclick=()=>paused=!paused;
-  $btnReset.onclick=()=>loadStage(stageCfg);
+  $btnPause.onclick=()=>{
+    paused=!paused;
+    paused?BGM.pause():bgmUnlocked&&BGM.play().catch(()=>{});
+  };
+  $btnReset.onclick=()=>{
+    BGM.pause();
+    loadStage(stageCfg);
+  };
 
-  flow.onSelect(cfg=>loadStage(cfg));
+  flow.onSelect(cfg=>{
+    BGM.pause();
+    loadStage(cfg);
+  });
 
   /* =========================
    * Boot
    * ========================= */
   fitCanvas();
   stage.resize(cv);
+  injectAudioSliders();
   loadStage(stageCfg);
-  requestAnimationFrame(t=>{tPrev=t;loop(t);});
 
+  requestAnimationFrame(t=>{tPrev=t;loop(t);});
   window.addEventListener("resize",()=>{
     fitCanvas();
     stage.resize(cv);
