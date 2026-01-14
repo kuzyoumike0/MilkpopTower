@@ -71,6 +71,25 @@ import { createStageFlow } from "./stageFlow.js";
   }
 
   /* =========================
+ * BGM
+ * ========================= */
+const BGM = new Audio("./assets/bgm/8-bit_Aggressive1.mp3");
+BGM.loop = true;
+BGM.volume = 0.45; // お好みで（0.0〜1.0）
+
+let bgmUnlocked = false;
+
+// ブラウザの自動再生対策（最初の操作で解放）
+function unlockBgm() {
+  if (bgmUnlocked) return;
+  bgmUnlocked = true;
+  BGM.play().catch(()=>{});
+  BGM.pause();
+  BGM.currentTime = 0;
+}
+window.addEventListener("pointerdown", unlockBgm, { once:true });
+
+  /* =========================
    * Stage / Flow
    * ========================= */
   const stage = createStage();
