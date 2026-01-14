@@ -1,36 +1,78 @@
-<div id="panel">
-  <button class="unitBtn" data-unit="babybunny">
-    <div class="uName">🐣 babybunny</div>
-    <div class="uMeta">cost 90</div>
-  </button>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Candy Defense</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header id="hud">
+    <div class="hudTop">
+      <div class="pill mini">
+        ENEMY <b id="enemyHpText">---</b>
+      </div>
 
-  <button class="unitBtn" data-unit="bunny">
-    <div class="uName">🐰 bunny</div>
-    <div class="uMeta">cost 160</div>
-  </button>
+      <div class="hudCenter">
+        <div class="candyBox">
+          <div class="candyTitle">🍭 Candy</div>
+          <div class="candyNums" id="candyText">0/0</div>
+          <div class="bar">
+            <div class="barFill" id="candyBar"></div>
+          </div>
+        </div>
 
-  <button class="unitBtn" data-unit="bunny3">
-    <div class="uName">🟢 bunny3</div>
-    <div class="uMeta">cost 240</div>
-  </button>
+        <div class="spawnRow" id="spawnRow">
+          <button class="unitBtn" data-unit="babybunny">
+            <div class="uName">🐣 baby</div>
+            <div class="uMeta">90</div>
+          </button>
+          <button class="unitBtn" data-unit="bunny">
+            <div class="uName">🐰 bunny</div>
+            <div class="uMeta">160</div>
+          </button>
+          <button class="unitBtn" data-unit="bunny3">
+            <div class="uName">🟢 b3</div>
+            <div class="uMeta">240</div>
+          </button>
+          <button class="unitBtn" data-unit="bunny4">
+            <div class="uName">🔵 b4</div>
+            <div class="uMeta">340</div>
+          </button>
+          <button class="unitBtn" data-unit="bunny5">
+            <div class="uName">⚪ b5</div>
+            <div class="uMeta">460</div>
+          </button>
+          <button class="unitBtn" data-unit="reabunny">
+            <div class="uName">🟡 rea</div>
+            <div class="uMeta">620</div>
+          </button>
+        </div>
+      </div>
 
-  <button class="unitBtn" data-unit="bunny4">
-    <div class="uName">🔵 bunny4</div>
-    <div class="uMeta">cost 340</div>
-  </button>
+      <div class="pill mini">
+        YOU <b id="yourHpText">---</b>
+      </div>
+    </div>
 
-  <button class="unitBtn" data-unit="bunny5">
-    <div class="uName">⚪ bunny5</div>
-    <div class="uMeta">cost 460</div>
-  </button>
+    <div class="hudBottom">
+      <div class="pill mini">WAVE <b id="waveText">1</b></div>
 
-  <button class="unitBtn" data-unit="reabunny">
-    <div class="uName">🟡 reabunny</div>
-    <div class="uMeta">cost 620</div>
-  </button>
+      <button class="btn" id="btnSkill">
+        ✨ ペロスイング <span id="skillText">ready</span>
+      </button>
 
-  <button class="skillBtn" id="btnSkill">
-    <div class="uName">✨ 必殺：ペロスイング</div>
-    <div class="uMeta"><span id="skillText">ready</span></div>
-  </button>
-</div>
+      <div class="hudBtns">
+        <button class="btn icon" id="btnPause">⏸</button>
+        <button class="btn icon" id="btnReset">↻</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="stage">
+    <canvas id="cv"></canvas>
+  </main>
+
+  <script src="./main.js"></script>
+</body>
+</html>
