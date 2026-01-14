@@ -2,7 +2,7 @@
   "use strict";
 
   /* =========================
-   * Canvas setup
+   * Canvas
    * ========================= */
   const cv = document.getElementById("cv");
   const ctx = cv.getContext("2d");
@@ -41,7 +41,7 @@
   }
   const isReady = img => img && img.complete && img.naturalWidth > 0;
 
-  // 自軍（指定ファイル名）
+  // Units
   const IMG_YOUR = {
     babybunny: loadImage("./assets/Unit/babybunny.png"),
     bunny:     loadImage("./assets/Unit/bunny.png"),
@@ -50,24 +50,22 @@
     bunny5:    loadImage("./assets/Unit/bunny5.png"),
     reabunny:  loadImage("./assets/Unit/reabunny.png"),
   };
-
-  // 敵（指定ファイル名）
   const IMG_ENEMY = {
-    enemybunny1: loadImage("./assets/enemy/enemybunny1.png"),
+    enemy: loadImage("./assets/enemy/enemybunny1.png"),
   };
 
-  // スポナー（追加）
+  // Spawners
   const IMG_ITEM = {
     oak:        loadImage("./assets/item/oak.png"),
     mirrorball: loadImage("./assets/item/mirrorball.png"),
   };
 
   /* =========================
-   * Game constants
+   * Config
    * ========================= */
   const GAME = {
-    groundH: 86,
-    leftBaseX: 110,
+    groundH: 92,
+    leftBaseX: 90,
     rightBaseX: 0,
     laneY: 0,
 
@@ -77,35 +75,30 @@
     candyMaxBase: 500,
     candyRegenBase: 32,
 
-    // スキル（今回は表示だけ残して、動作は簡易）
     skillCd: 9,
 
-    // スポナー設定
-    oakSpawnSec: 3.2,        // oakから味方bunnyが出る間隔
-    mirrorSpawnSec: 1.8,     // mirrorballから敵が出る間隔
-    maxUnitsEachSide: 30,    // 増えすぎ防止
+    // Spawner speeds
+    oakSpawnSec: 3.2,
+    mirrorSpawnSec: 1.8,
+
+    // prevent overflow
+    maxUnitsEachSide: 34,
   };
 
-  /* =========================
-   * Unit definitions（出撃クールタイム付き）
-   * ========================= */
   const UNIT_DEFS = {
     babybunny:{ cost: 90,  hp:120, atk:16, range:24, speed:60, atkCd:0.55, size:24, spawnCd:1.8 },
     bunny:    { cost:160,  hp:220, atk:22, range:26, speed:52, atkCd:0.62, size:26, spawnCd:2.6 },
     bunny3:   { cost:240,  hp:320, atk:28, range:28, speed:46, atkCd:0.70, size:28, spawnCd:3.4 },
     bunny4:   { cost:340,  hp:420, atk:34, range:30, speed:42, atkCd:0.78, size:30, spawnCd:4.4, knock:8 },
     bunny5:   { cost:460,  hp:560, atk:42, range:34, speed:38, atkCd:0.86, size:32, spawnCd:5.6, knock:12 },
-    reabunny: { cost:620,  hp:520, atk:46, range:140,speed:34, atkCd:0.95, size:32, spawnCd:7.2, projectile:true },
+    reabunny: { cost:620,  hp:520, atk:46, range:140,speed:34, atkCd:0.95, size:32, spawnCd:7.2, projectile:false },
   };
 
-  /* =========================
-   * Enemy base def (simple)
-   * ========================= */
   function enemyStatsForWave(w) {
     return {
       hp: 140 + w * 22,
       atk: 18 + w * 2,
-      speed: 48 + Math.min(12, w * 0.8),
+      speed: 48 + Math.min(14, w * 0.85),
       atkCd: Math.max(0.48, 0.65 - w * 0.01),
       size: 26,
       range: 24,
@@ -126,7 +119,6 @@
   let candy = 220;
   let candyRegen = GAME.candyRegenBase;
 
-  // スキル（簡易：押したら敵を少し押し返す）
   let skillReady = true;
   let skillLeft = 0;
 
@@ -134,10 +126,8 @@
   const enemyUnits = [];
   const particles = [];
 
-  // ★ 出撃クールタイム（unitKey -> secondsLeft）
   const spawnCdLeft = Object.create(null);
 
-  // ★ スポナー用タイマー
   let oakTimer = 0;
   let mirrorTimer = 0;
 
@@ -149,9 +139,13 @@
 
   function worldInitMetrics() {
     const r = cv.getBoundingClientRect();
-    GAME.rightBaseX = r.width - 110;
-    GAME.laneY = r.height - GAME.groundH - 44;
+    GAME.rightBaseX = r.width - 90;
+    GAME.laneY = r.height - GAME.groundH - 52;
   }
+
+  // ✅ 端固定：mirrorball 左端 / oak 右端
+  function mirrorX() { return GAME.leftBaseX + 54; }
+  function oakX()    { return GAME.rightBaseX - 54; }
 
   function addParticle(x, y, n = 8) {
     for (let i = 0; i < n; i++) {
@@ -169,38 +163,13 @@
     if (isReady(img)) return img;
     return isReady(IMG_YOUR.bunny) ? IMG_YOUR.bunny : null;
   }
-
   function pickEnemyImg() {
-    const img = IMG_ENEMY.enemybunny1;
-    return isReady(img) ? img : null;
+    return isReady(IMG_ENEMY.enemy) ? IMG_ENEMY.enemy : null;
   }
 
   /* =========================
-   * Spawn
+   * Spawns
    * ========================= */
-
-  // 通常出撃（ボタン）：cost + 出撃クールタイムあり
-  function spawnYour(key) {
-    const d = UNIT_DEFS[key];
-    if (!d) return;
-    if ((spawnCdLeft[key] || 0) > 0) return;
-    if (candy < d.cost) return;
-    if (yourUnits.length >= GAME.maxUnitsEachSide) return;
-
-    candy -= d.cost;
-    spawnCdLeft[key] = d.spawnCd || 0;
-
-    yourUnits.push(makeYourUnit(key, GAME.rightBaseX - 50));
-  }
-
-  // oak出撃：無料＆ボタンCD無関係（= oak専用タイマーで制御）
-  function spawnFromOak() {
-    if (yourUnits.length >= GAME.maxUnitsEachSide) return;
-    // oakからは「bunny」を出す（指定通り）
-    yourUnits.push(makeYourUnit("bunny", oakX() + 36));
-    addParticle(oakX() + 36, GAME.laneY - 30, 12);
-  }
-
   function makeYourUnit(key, x) {
     const d = UNIT_DEFS[key] || UNIT_DEFS.bunny;
     return {
@@ -220,14 +189,35 @@
     };
   }
 
-  // mirrorball出撃：敵がここから湧く
+  function spawnYour(key) {
+    const d = UNIT_DEFS[key];
+    if (!d) return;
+    if ((spawnCdLeft[key] || 0) > 0) return;
+    if (candy < d.cost) return;
+    if (yourUnits.length >= GAME.maxUnitsEachSide) return;
+
+    candy -= d.cost;
+    spawnCdLeft[key] = d.spawnCd || 0;
+
+    // ✅ 右端 oak の少し左から出撃（見た目が自然）
+    yourUnits.push(makeYourUnit(key, oakX() - 40));
+    addParticle(oakX() - 40, GAME.laneY - 30, 10);
+  }
+
+  // oak -> bunny（無料）
+  function spawnFromOak() {
+    if (yourUnits.length >= GAME.maxUnitsEachSide) return;
+    yourUnits.push(makeYourUnit("bunny", oakX() - 40));
+    addParticle(oakX() - 40, GAME.laneY - 30, 12);
+  }
+
+  // mirrorball -> enemy
   function spawnFromMirrorball() {
     if (enemyUnits.length >= GAME.maxUnitsEachSide) return;
-
     const s = enemyStatsForWave(wave);
     enemyUnits.push({
       side: "enemy",
-      x: mirrorX() - 36,
+      x: mirrorX() + 40,
       y: GAME.laneY,
       hp: s.hp,
       hpMax: s.hp,
@@ -238,7 +228,7 @@
       cdLeft: 0,
       size: s.size
     });
-    addParticle(mirrorX() - 36, GAME.laneY - 30, 12);
+    addParticle(mirrorX() + 40, GAME.laneY - 30, 12);
   }
 
   /* =========================
@@ -252,7 +242,6 @@
     const targets = isYour ? enemyUnits : yourUnits;
     const baseX = isYour ? GAME.leftBaseX : GAME.rightBaseX;
 
-    // find nearest
     let target = null;
     let best = 1e9;
     for (const t of targets) {
@@ -268,24 +257,19 @@
       if (u.cdLeft <= 0) {
         if (target) {
           target.hp -= u.atk;
-
-          // knockback
           if (isYour && u.knock) target.x -= u.knock;
           if (!isYour) target.x += 4;
-
-          addParticle(target.x, target.y - 20, 8);
+          addParticle(target.x, target.y - 22, 8);
         } else {
-          // hit base
           if (isYour) enemyBaseHP -= u.atk;
           else yourBaseHP -= u.atk;
-          addParticle(baseX + (isYour ? 20 : -20), GAME.laneY - 16, 10);
+          addParticle(baseX + (isYour ? 16 : -16), GAME.laneY - 16, 10);
         }
         u.cdLeft = u.atkCd;
       }
       return;
     }
 
-    // move
     u.x += dir * u.speed * dt;
     u.x = clamp(u.x, GAME.leftBaseX, GAME.rightBaseX);
   }
@@ -295,7 +279,7 @@
       if (enemyUnits[i].hp > 0) continue;
       addParticle(enemyUnits[i].x, enemyUnits[i].y - 18, 16);
       enemyUnits.splice(i, 1);
-      candy = clamp(candy + 18, 0, candyMax); // 倒した報酬
+      candy = clamp(candy + 18, 0, candyMax);
     }
     for (let i = yourUnits.length - 1; i >= 0; i--) {
       if (yourUnits[i].hp > 0) continue;
@@ -305,18 +289,15 @@
   }
 
   /* =========================
-   * Economy + Cooldowns + Spawners
+   * Economy + cooldowns + spawners
    * ========================= */
   function updateEconomy(dt) {
-    // candy regen
     candy = clamp(candy + candyRegen * dt, 0, candyMax);
 
-    // button spawn cooldowns
     for (const k in spawnCdLeft) {
       spawnCdLeft[k] = Math.max(0, spawnCdLeft[k] - dt);
     }
 
-    // skill cd
     if (!skillReady) {
       skillLeft = Math.max(0, skillLeft - dt);
       if (skillLeft <= 0) skillReady = true;
@@ -324,14 +305,12 @@
   }
 
   function updateSpawners(dt) {
-    // oak -> your bunny
     oakTimer += dt;
     if (oakTimer >= GAME.oakSpawnSec) {
       oakTimer = 0;
       spawnFromOak();
     }
 
-    // mirrorball -> enemy
     mirrorTimer += dt;
     if (mirrorTimer >= GAME.mirrorSpawnSec) {
       mirrorTimer = 0;
@@ -340,21 +319,20 @@
   }
 
   /* =========================
-   * Skill (simple)
+   * Skill
    * ========================= */
   function castSkill() {
     if (!skillReady || paused) return;
     skillReady = false;
     skillLeft = GAME.skillCd;
 
-    // push enemies back a bit near your side
-    const zoneL = GAME.rightBaseX - 320;
-    const zoneR = GAME.rightBaseX - 30;
+    const zoneL = GAME.rightBaseX - 360;
+    const zoneR = GAME.rightBaseX - 60;
 
     for (const e of enemyUnits) {
       if (e.x < zoneL || e.x > zoneR) continue;
       e.hp -= 60;
-      e.x -= 60;
+      e.x -= 70;
       addParticle(e.x, e.y - 22, 18);
     }
   }
@@ -374,19 +352,7 @@
   }
 
   /* =========================
-   * Spawner positions
-   * ========================= */
-  function oakX() {
-    // 右側（自軍側）に配置
-    return GAME.rightBaseX - 190;
-  }
-  function mirrorX() {
-    // 左側（敵側）に配置
-    return GAME.leftBaseX + 190;
-  }
-
-  /* =========================
-   * Rendering
+   * Render
    * ========================= */
   function drawBackground(w, h) {
     const g = ctx.createLinearGradient(0, 0, 0, h);
@@ -398,11 +364,11 @@
     ctx.fillStyle = "rgba(255, 170, 210, .35)";
     ctx.fillRect(0, h - GAME.groundH, w, GAME.groundH);
 
-    ctx.strokeStyle = "rgba(0,0,0,.08)";
+    ctx.strokeStyle = "rgba(0,0,0,.07)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(0, GAME.laneY + 22);
-    ctx.lineTo(w, GAME.laneY + 22);
+    ctx.moveTo(0, GAME.laneY + 24);
+    ctx.lineTo(w, GAME.laneY + 24);
     ctx.stroke();
   }
 
@@ -410,12 +376,12 @@
     ctx.save();
     ctx.translate(x, y);
 
-    ctx.fillStyle = isYour ? "rgba(255,123,178,.75)" : "rgba(80,80,90,.55)";
+    ctx.fillStyle = isYour ? "rgba(255,123,178,.80)" : "rgba(80,80,90,.55)";
     ctx.beginPath();
-    ctx.roundRect(-22, -74, 44, 92, 14);
+    ctx.roundRect(-22, -74, 44, 92, 16);
     ctx.fill();
 
-    ctx.fillStyle = isYour ? "rgba(255,255,255,.92)" : "rgba(255,255,255,.75)";
+    ctx.fillStyle = "rgba(255,255,255,.92)";
     ctx.beginPath();
     ctx.arc(0, -86, 18, 0, Math.PI * 2);
     ctx.fill();
@@ -434,8 +400,7 @@
       ctx.drawImage(img, x - size / 2, y - size, size, size);
       return;
     }
-    // fallback
-    ctx.fillStyle = "rgba(0,0,0,.15)";
+    ctx.fillStyle = "rgba(0,0,0,.12)";
     ctx.beginPath();
     ctx.arc(x, y - size * 0.55, size * 0.35, 0, Math.PI * 2);
     ctx.fill();
@@ -450,22 +415,12 @@
       if (img) {
         const s = u.size * 2.25;
         ctx.drawImage(img, x - s / 2, y - s, s, s);
-      } else {
-        ctx.fillStyle = "rgba(255,160,195,.75)";
-        ctx.beginPath();
-        ctx.arc(x, y - 24, u.size, 0, Math.PI * 2);
-        ctx.fill();
       }
     } else {
       const img = pickEnemyImg();
       if (img) {
         const s = u.size * 2.15;
         ctx.drawImage(img, x - s / 2, y - s, s, s);
-      } else {
-        ctx.fillStyle = "rgba(0,0,0,.45)";
-        ctx.beginPath();
-        ctx.arc(x, y - 24, u.size, 0, Math.PI * 2);
-        ctx.fill();
       }
     }
 
@@ -492,37 +447,28 @@
     drawBackground(w, h);
 
     // bases
-    drawBase(GAME.leftBaseX,  GAME.laneY + 22, enemyBaseHP, GAME.enemyBaseHPMax, false);
-    drawBase(GAME.rightBaseX, GAME.laneY + 22, yourBaseHP,  GAME.yourBaseHPMax,  true);
+    drawBase(GAME.leftBaseX,  GAME.laneY + 24, enemyBaseHP, GAME.enemyBaseHPMax, false);
+    drawBase(GAME.rightBaseX, GAME.laneY + 24, yourBaseHP,  GAME.yourBaseHPMax,  true);
 
-    // spawners (oak / mirrorball)
-    drawSpawner(oakX(),    GAME.laneY + 24, IMG_ITEM.oak,        170);
-    drawSpawner(mirrorX(), GAME.laneY + 24, IMG_ITEM.mirrorball, 150);
+    // spawners on edges
+    drawSpawner(mirrorX(), GAME.laneY + 28, IMG_ITEM.mirrorball, 150);
+    drawSpawner(oakX(),    GAME.laneY + 28, IMG_ITEM.oak,        170);
 
     // units
     for (const e of enemyUnits) drawUnit(e);
     for (const u of yourUnits) drawUnit(u);
 
     drawParticles();
-
-    // skill zone hint
-    if (skillReady) {
-      ctx.save();
-      ctx.fillStyle = "rgba(255,220,140,.16)";
-      ctx.fillRect(GAME.rightBaseX - 320, GAME.laneY - 120, 280, 150);
-      ctx.restore();
-    }
   }
 
   /* =========================
-   * UI
+   * UI refresh
    * ========================= */
   function ensureCdBadges() {
     for (const btn of unitBtns) {
       if (btn.querySelector(".cdBadge")) continue;
       const badge = document.createElement("div");
       badge.className = "cdBadge";
-      badge.textContent = "";
       btn.appendChild(badge);
     }
   }
@@ -536,7 +482,6 @@
     $candyBar.style.width = `${(candy / candyMax) * 100}%`;
 
     ensureCdBadges();
-
     for (const b of unitBtns) {
       const key = b.dataset.unit;
       const def = UNIT_DEFS[key];
@@ -547,53 +492,48 @@
       const ok = okCost && okCd;
 
       b.classList.toggle("disabled", !ok);
-
       const badge = b.querySelector(".cdBadge");
       if (badge) badge.textContent = cd > 0 ? `${Math.ceil(cd)}s` : "";
     }
 
     if (skillReady) {
-      $btnSkill.classList.remove("disabled");
+      $btnSkill.disabled = false;
       $skillText.textContent = "ready";
     } else {
-      $btnSkill.classList.add("disabled");
+      $btnSkill.disabled = true;
       $skillText.textContent = `${Math.ceil(skillLeft)}s`;
     }
   }
 
   /* =========================
-   * Main loop
+   * Wave
    * ========================= */
-  function stepWave(dt) {
-    // シンプル：敵拠点破壊でWave+1（スポナー速度が上がる）
+  function stepWave() {
     if (enemyBaseHP > 0 && yourBaseHP > 0) return;
 
     if (enemyBaseHP <= 0) {
       wave += 1;
       enemyBaseHP = GAME.enemyBaseHPMax + Math.floor((wave - 1) * 160);
 
-      // スポーン強化：mirrorballが少し早くなる
-      GAME.mirrorSpawnSec = Math.max(0.75, GAME.mirrorSpawnSec - 0.08);
+      // mirrorball gets faster each wave (cap)
+      GAME.mirrorSpawnSec = Math.max(0.75, 1.8 - (wave - 1) * 0.08);
 
-      // 報酬
       candyMax = GAME.candyMaxBase + (wave - 1) * 40;
       candyRegen = GAME.candyRegenBase + (wave - 1) * 2.4;
       candy = clamp(candy + 240, 0, candyMax);
 
-      // 盤面軽く整頓
       enemyUnits.length = 0;
-
-      // 自軍回復
       yourBaseHP = Math.min(GAME.yourBaseHPMax, yourBaseHP + 520);
       addParticle(GAME.rightBaseX - 40, GAME.laneY - 40, 24);
+      return;
     }
 
-    if (yourBaseHP <= 0) {
-      // リセット（簡単に）
-      resetGame();
-    }
+    if (yourBaseHP <= 0) resetGame();
   }
 
+  /* =========================
+   * Loop
+   * ========================= */
   function loop(tNow) {
     const dt = clamp((tNow - tPrev) / 1000, 0, 0.05);
     tPrev = tNow;
@@ -607,7 +547,7 @@
 
       cleanupDead();
       updateParticles(dt);
-      stepWave(dt);
+      stepWave();
     }
 
     render();
@@ -641,7 +581,6 @@
     oakTimer = 0;
     mirrorTimer = 0;
 
-    // 初期スポーン速度を戻す
     GAME.oakSpawnSec = 3.2;
     GAME.mirrorSpawnSec = 1.8;
   }
@@ -656,10 +595,7 @@
     });
   });
 
-  $btnSkill.addEventListener("click", () => {
-    if ($btnSkill.classList.contains("disabled")) return;
-    castSkill();
-  });
+  $btnSkill.addEventListener("click", () => castSkill());
 
   $btnPause.addEventListener("click", () => {
     paused = !paused;
@@ -671,16 +607,20 @@
   /* =========================
    * Start
    * ========================= */
-  fitCanvas();
-  worldInitMetrics();
+  function boot() {
+    fitCanvas();
+    worldInitMetrics();
+    resetGame();
+    requestAnimationFrame((t) => {
+      tPrev = t;
+      requestAnimationFrame(loop);
+    });
+  }
+
   window.addEventListener("resize", () => {
     fitCanvas();
     worldInitMetrics();
   });
 
-  resetGame();
-  requestAnimationFrame((t) => {
-    tPrev = t;
-    requestAnimationFrame(loop);
-  });
+  boot();
 })();
