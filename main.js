@@ -6,6 +6,36 @@ import { createStageFlow } from "./stageFlow.js";
   "use strict";
 
   /* =========================
+   * LevelUp (EXP / Power Mul)
+   * =========================
+   * levelup.js を読み込んでいれば window.MilkpopLevelUp が生える想定。
+   * - 勝利時：milkpop:win を投げる（levelup.js側が拾ってEXP付与）
+   * - ユニット生成時：倍率を掛けて強化（atk/hp）
+   */
+  function getPowerMul(unitKey) {
+    try {
+      const api = window.MilkpopLevelUp;
+      if (api && typeof api.getMul === "function") {
+        const m = Number(api.getMul(unitKey));
+        return Number.isFinite(m) ? m : 1;
+      }
+    } catch {}
+    return 1;
+  }
+
+  function emitWinForExp() {
+    // levelup.js のフック（windowイベント）に合わせる
+    try {
+      window.dispatchEvent(new Event("milkpop:win"));
+    } catch {}
+    // 直接叩けるならそれでもOK（保険）
+    try {
+      const api = window.MilkpopLevelUp;
+      if (api && typeof api.grantWinExp === "function") api.grantWinExp();
+    } catch {}
+  }
+
+  /* =========================
    * Canvas
    * ========================= */
   const cv = document.getElementById("cv");
@@ -513,12 +543,18 @@ import { createStageFlow } from "./stageFlow.js";
    * ========================= */
   function makeYourUnit(key, x) {
     const d = UNIT_DEFS[key];
+
+    // ✅ レベルアップ倍率を atk/hp に反映
+    const mul = getPowerMul(key);
+    const hp = Math.floor(d.hp * mul);
+    const atk = Math.floor(d.atk * mul);
+
     return {
       side:"your",
       key, x,
       y: stage.ST.laneY,
-      hp:d.hp, hpMax:d.hp,
-      atk:d.atk, range:d.range,
+      hp, hpMax: hp,
+      atk, range:d.range,
       speed:d.speed, atkCd:d.atkCd,
       cdLeft:0, size:d.size,
 
@@ -659,6 +695,10 @@ import { createStageFlow } from "./stageFlow.js";
     if (!lockedWin && mirrorHP <= 0) {
       lockedWin = true;
       BGM.pause();
+
+      // ✅ 勝利EXP付与（levelup.jsへ通知）
+      emitWinForExp();
+
       spawnConfetti();
       showResult("win");
       setTimeout(() => {
